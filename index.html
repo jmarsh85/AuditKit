@@ -1067,120 +1067,221 @@
   .scroll-chip-row::-webkit-scrollbar { display: none; }
   .scroll-chip-row .filter-chip { flex-shrink: 0; }
 
-  /* ── REGISTRY CARD LIST (mobile alternative to table) ── */
+  /* ── REGISTRY CARD LIST ── */
   .registry-card-list {
     display: none;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px;
+    padding: 0 0 12px;
   }
 
-  .reg-card {
-    background: var(--bg3);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-left: 3px solid var(--border2);
-  }
-  .reg-card.ok { border-left-color: var(--green); }
-  .reg-card.flagged { border-left-color: var(--red); }
-  .reg-card.resolved { border-left-color: var(--blue); }
-  .reg-card.unchecked { border-left-color: var(--border3); }
-
-  .reg-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-  .reg-card-id { color: var(--teal); font-size: 12px; font-weight: 600; word-break: break-all; flex: 1; }
-  .reg-card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .reg-card-type { font-size: 10px; color: var(--t3); }
-  .reg-card-label { font-size: 11px; color: var(--t2); }
-  .reg-card-controls { display: flex; gap: 8px; align-items: center; }
-  .reg-card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--t3); }
-
-  /* ── REGISTRY GROUPS ── */
-  .reg-group { margin-bottom: 4px; }
+  /* ── REGISTRY GROUPS (collapsible) ── */
+  .reg-group { border-bottom: 1px solid var(--border1); }
 
   .reg-group-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px 6px;
-    gap: 8px;
+    gap: 10px;
+    padding: 11px 14px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background var(--trans);
   }
+  .reg-group-header:hover { background: rgba(255,255,255,0.02); }
+  .reg-group-header:active { background: rgba(255,255,255,0.04); }
+
+  .reg-group-chevron {
+    font-size: 10px;
+    color: var(--t3);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+  .reg-group.open .reg-group-chevron { transform: rotate(90deg); }
 
   .reg-group-title {
     font-family: 'Syne', sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--t2);
+    color: var(--t1);
+    flex: 1;
   }
 
-  .reg-group-counts { display: flex; gap: 4px; flex-wrap: wrap; }
+  .reg-group-subtitle {
+    font-size: 10px;
+    color: var(--t3);
+    font-weight: 400;
+  }
+
+  .reg-group-counts { display: flex; gap: 4px; align-items: center; }
 
   .reg-count-chip {
     font-size: 9px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 3px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
     letter-spacing: 0.04em;
+    white-space: nowrap;
   }
-  .reg-count-chip.unchecked { background: var(--bg4); color: var(--t3); }
-  .reg-count-chip.flagged { background: var(--red-dim); color: var(--red); }
-  .reg-count-chip.ok { background: var(--green-dim); color: var(--green); }
+  .reg-count-chip.ok { background: var(--green-dim); color: var(--green); border: 1px solid rgba(45,214,123,0.2); }
+  .reg-count-chip.changed { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.2); }
+  .reg-count-chip.missing { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,94,0.2); }
+  .reg-count-chip.issue { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(162,89,255,0.2); }
+  .reg-count-chip.resolved { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(77,159,255,0.2); }
+  .reg-count-chip.total { background: var(--bg4); color: var(--t2); border: 1px solid var(--border2); }
 
-  /* ── COMPACT REG CARDS ── */
-  .reg-card {
-    background: var(--bg3);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    padding: 8px 12px;
-    display: flex;
+  .reg-group-body {
+    display: none;
     flex-direction: column;
-    gap: 6px;
-    border-left: 3px solid var(--border2);
-    margin: 0 12px 4px;
+    gap: 2px;
+    padding: 0 8px 8px;
   }
-  .reg-card.ok { border-left-color: var(--green); }
-  .reg-card.flagged { border-left-color: var(--red); }
-  .reg-card.resolved { border-left-color: var(--blue); border-left-color: var(--blue); opacity: 0.6; }
-  .reg-card.unchecked { border-left-color: var(--border3); }
+  .reg-group.open .reg-group-body { display: flex; }
 
-  .reg-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .reg-card-id { color: var(--teal); font-size: 11px; font-weight: 600; word-break: break-all; flex: 1; }
-  .reg-card-label-text { font-size: 10px; color: var(--t2); padding-left: 1px; }
-
-  .reg-card-inline-row {
+  /* ── REGISTRY COMPACT ROWS ── */
+  .reg-row {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 8px 8px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--trans);
+    border-left: 3px solid transparent;
   }
+  .reg-row:hover { background: rgba(255,255,255,0.03); }
+  .reg-row.ok { border-left-color: var(--green); }
+  .reg-row.changed { border-left-color: var(--amber); }
+  .reg-row.missing { border-left-color: var(--red); }
+  .reg-row.issue { border-left-color: var(--purple); }
+  .reg-row.resolved { border-left-color: var(--blue); opacity: 0.5; }
 
-  .reg-inline-select {
+  .reg-row-id {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--teal);
     flex: 1;
-    height: 30px;
-    font-size: 14px;
-    padding: 0 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reg-row-label {
+    font-size: 10px;
+    color: var(--t3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    flex-shrink: 0;
+  }
+  .reg-row-status { flex-shrink: 0; }
+
+  /* ── STATUS PILLS (plain English) ── */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .status-pill.ok { background: var(--green-dim); color: var(--green); border: 1px solid rgba(45,214,123,0.25); }
+  .status-pill.changed { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.25); }
+  .status-pill.missing { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,94,0.25); }
+  .status-pill.issue { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(162,89,255,0.25); }
+  .status-pill.resolved { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(77,159,255,0.25); }
+
+  /* Status pill human labels */
+  .status-pill.ok::before { content: '✓ Working'; }
+  .status-pill.changed::before { content: '~ Updated'; }
+  .status-pill.missing::before { content: '! Missing'; }
+  .status-pill.issue::before { content: '⚠ Issue'; }
+  .status-pill.resolved::before { content: '✓ Fixed'; }
+
+  /* ── DRILL-DOWN DRAWER ── */
+  .reg-drawer {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0 0 4px;
+  }
+  .reg-drawer.open { display: flex; }
+
+  .reg-drawer-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .reg-card-ver { font-size: 9px; color: var(--t3); white-space: nowrap; flex-shrink: 0; }
+  .reg-drawer-id { font-size: 12px; font-weight: 700; color: var(--teal); word-break: break-all; flex: 1; }
+  .reg-drawer-close { background: none; border: none; color: var(--t3); font-size: 16px; cursor: pointer; flex-shrink: 0; padding: 0; line-height: 1; }
+  .reg-drawer-close:hover { color: var(--t1); }
 
-  .reg-note-row { display: flex; }
+  .reg-drawer-meta { font-size: 10px; color: var(--t3); line-height: 1.6; }
+  .reg-drawer-meta span { color: var(--t2); }
+
+  .reg-drawer-desc {
+    font-size: 11px;
+    color: var(--t2);
+    background: var(--bg3);
+    border-radius: 4px;
+    padding: 8px 10px;
+    line-height: 1.6;
+    border-left: 2px solid var(--border3);
+  }
+
+  .reg-status-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .reg-status-btn {
+    height: 34px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--t3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--trans);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .reg-status-btn:hover { color: var(--t1); border-color: var(--border3); }
+  .reg-status-btn.active-ok { background: var(--green-dim); border-color: rgba(45,214,123,0.3); color: var(--green); }
+  .reg-status-btn.active-changed { background: var(--amber-dim); border-color: rgba(245,166,35,0.3); color: var(--amber); }
+  .reg-status-btn.active-missing { background: var(--red-dim); border-color: rgba(255,77,94,0.3); color: var(--red); }
+  .reg-status-btn.active-issue { background: var(--purple-dim); border-color: rgba(162,89,255,0.3); color: var(--purple); }
+  .reg-status-btn.active-resolved { background: var(--blue-dim); border-color: rgba(77,159,255,0.3); color: var(--blue); }
 
   .reg-note-inline {
     width: 100%;
-    background: var(--bg2);
+    background: var(--bg3);
     border: 1px solid var(--border1);
     border-radius: 4px;
     color: var(--t2);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    padding: 5px 8px;
+    font-size: 14px;
+    padding: 7px 10px;
     outline: none;
     transition: border-color var(--trans);
-    height: 30px;
+    height: 36px;
   }
   .reg-note-inline:focus { border-color: var(--teal-border); color: var(--t1); }
 
@@ -1245,7 +1346,7 @@
     .diff-stat { padding: 10px 8px; }
     .diff-stat-num { font-size: 18px; }
 
-    /* REGISTRY — hide table, show cards */
+    /* REGISTRY — hide table, show grouped card list */
     #registry-table-wrap { display: none; }
     .registry-card-list { display: flex; }
 
@@ -1551,10 +1652,11 @@
         <div class="card-body" style="padding-bottom:8px">
           <div class="scroll-chip-row" id="reg-filters">
             <button class="filter-chip active" onclick="setRegFilter('all',this)">All</button>
-            <button class="filter-chip" onclick="setRegFilter('unchecked',this)">Unchecked</button>
-            <button class="filter-chip" onclick="setRegFilter('ok',this)">OK</button>
-            <button class="filter-chip" onclick="setRegFilter('flagged',this)">Flagged</button>
-            <button class="filter-chip" onclick="setRegFilter('resolved',this)">Resolved</button>
+            <button class="filter-chip" onclick="setRegFilter('ok',this)">✓ Working</button>
+            <button class="filter-chip" onclick="setRegFilter('changed',this)">~ Updated</button>
+            <button class="filter-chip" onclick="setRegFilter('missing',this)">! Missing</button>
+            <button class="filter-chip" onclick="setRegFilter('issue',this)">⚠ Issue</button>
+            <button class="filter-chip" onclick="setRegFilter('resolved',this)">✓ Fixed</button>
           </div>
         </div>
         <div id="registry-table-wrap" style="overflow-x:auto">
@@ -2345,25 +2447,26 @@ function syncRegistry() {
   var version = proj ? proj.version : 'unknown';
   var added = 0, flagged = 0;
 
-  // Add new elements from Version B
+  // Add new elements from Version B — mark as 'changed' (needs a look)
   AK.lastDiff.elsB.forEach(function(e) {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(!exists) {
       AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
-        elType: e.type, label: e.label, status: 'unchecked', note: '', version: version, ts: new Date().toISOString() });
+        elType: e.type, label: e.label, status: 'changed', note: 'Added in ' + version, version: version, ts: new Date().toISOString() });
       added++;
     } else {
-      // Update label/type if changed
       if(e.label && e.label !== exists.label) exists.label = e.label;
+      // If was OK and element type changed, mark as changed
+      if(exists.status === 'ok') { /* keep ok — type changes tracked in diff */ }
     }
   });
 
-  // Flag removed elements (only if they were in registry)
+  // Elements in registry but not in Version B — mark as 'missing'
   AK.lastDiff.removed.forEach(function(e) {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
-    if(exists && exists.status !== 'flagged') {
-      exists.status = 'flagged';
-      exists.note = (exists.note ? exists.note + ' | ' : '') + 'Removed in ' + version;
+    if(exists && exists.status !== 'missing') {
+      exists.status = 'missing';
+      exists.note = (exists.note ? exists.note + ' | ' : '') + 'Not found in ' + version;
       flagged++;
     }
   });
@@ -2419,7 +2522,7 @@ function applyBaseline(projId) {
   AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
   els.forEach(function(e) {
     AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
-      elType: e.type, label: e.label, status: 'unchecked', note: 'Baseline set ' + new Date().toLocaleDateString(),
+      elType: e.type, label: e.label, status: 'ok', note: '',
       version: version, ts: new Date().toISOString() });
   });
 
@@ -2441,120 +2544,193 @@ function setRegFilter(f, btn) {
   renderRegistry();
 }
 
-// Map element types to category groups
-function regCategory(elType) {
+// Map element types to readable category groups
+var REG_GROUPS = [
+  { key: 'Actions',    label: 'Buttons & Actions',    desc: 'Tappable buttons, links, and interactive controls',   match: function(t){ return t==='button'||t==='a'; } },
+  { key: 'Inputs',     label: 'Forms & Inputs',       desc: 'Text fields, dropdowns, checkboxes, and textareas',   match: function(t){ return t==='input'||t==='textarea'||t==='select'||t==='form'; } },
+  { key: 'Navigation', label: 'Navigation',           desc: 'Nav bars, tabs, menus, and screen routing elements',  match: function(t){ return t==='nav'; } },
+  { key: 'Layout',     label: 'Structural Layout',    desc: 'Page sections, headers, footers, and main containers',match: function(t){ return ['header','footer','main','section','aside'].includes(t); } },
+  { key: 'Containers', label: 'Panels & Containers',  desc: 'Named divs and spans that hold other content',        match: function(t){ return t==='div'||t==='span'; } },
+  { key: 'Other',      label: 'Other Elements',       desc: 'Miscellaneous elements not in another category',      match: function(){ return true; } }
+];
+
+// Plain English descriptions of what each status means
+var STATUS_INFO = {
+  ok:       { label: 'Working',  desc: 'Confirmed present and functioning correctly', color: 'var(--green)' },
+  changed:  { label: 'Updated',  desc: 'Appeared or was modified in a recent diff — needs a look', color: 'var(--amber)' },
+  missing:  { label: 'Missing',  desc: 'Was working before but is no longer found in the latest version', color: 'var(--red)' },
+  issue:    { label: 'Issue',    desc: 'Manually flagged — something about this element needs attention', color: 'var(--purple)' },
+  resolved: { label: 'Fixed',    desc: 'Was missing or had an issue, now confirmed resolved', color: 'var(--blue)' }
+};
+
+function regCategoryKey(elType) {
   var t = (elType || '').split('[')[0].toLowerCase();
-  if(t === 'button') return 'Buttons';
-  if(t === 'input' || t === 'textarea' || t === 'select') return 'Inputs';
-  if(t === 'form') return 'Forms';
-  if(t === 'a') return 'Links';
-  if(t === 'nav' || t === 'header' || t === 'footer' || t === 'aside' || t === 'main' || t === 'section') return 'Layout';
-  if(t === 'div' || t === 'span') return 'Containers';
+  for(var i = 0; i < REG_GROUPS.length; i++) {
+    if(REG_GROUPS[i].match(t)) return REG_GROUPS[i].key;
+  }
   return 'Other';
+}
+
+var REG_OPEN_GROUPS = {}; // track which groups are expanded
+var REG_OPEN_DRAWER = null; // currently open drill-down
+
+function toggleRegGroup(key) {
+  REG_OPEN_GROUPS[key] = !REG_OPEN_GROUPS[key];
+  var grp = document.getElementById('reg-group-' + key);
+  if(grp) grp.classList.toggle('open', !!REG_OPEN_GROUPS[key]);
+}
+
+function toggleRegDrawer(id) {
+  // Close previously open drawer
+  if(REG_OPEN_DRAWER && REG_OPEN_DRAWER !== id) {
+    var prev = document.getElementById('reg-drawer-' + REG_OPEN_DRAWER);
+    if(prev) prev.classList.remove('open');
+  }
+  var drawer = document.getElementById('reg-drawer-' + id);
+  if(!drawer) return;
+  var opening = !drawer.classList.contains('open');
+  drawer.classList.toggle('open', opening);
+  REG_OPEN_DRAWER = opening ? id : null;
+}
+
+function setRegStatusFromDrawer(id, status) {
+  var r = AK.registry.find(function(x){ return x.id == id; });
+  if(!r) return;
+  r.status = status;
+  AK.save();
+  renderRegistry(); // re-render to update colours
+  // Re-open the same drawer and group after re-render
+  REG_OPEN_DRAWER = id;
+  if(r.elType) {
+    var grpKey = regCategoryKey(r.elType);
+    REG_OPEN_GROUPS[grpKey] = true;
+  }
+  renderRegistry();
+  toast('Status set: ' + (STATUS_INFO[status] ? STATUS_INFO[status].label : status));
+}
+
+function setRegNoteFromDrawer(id, note) {
+  var r = AK.registry.find(function(x){ return x.id == id; });
+  if(r) { r.note = note; AK.save(); }
 }
 
 function renderRegistry() {
   var projId = document.getElementById('reg-project-sel').value;
-  var items = AK.registry.filter(function(r) {
-    var projMatch = !projId || r.projectId == projId;
-    var statusMatch = REG_FILTER === 'all' || r.status === REG_FILTER;
-    return projMatch && statusMatch;
+  var allItems = AK.registry.filter(function(r) {
+    return !projId || r.projectId == projId;
   });
+  var items = REG_FILTER === 'all' ? allItems : allItems.filter(function(r){ return r.status === REG_FILTER; });
 
-  var emptyHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>No elements in registry yet.<br>Run an audit and push results.</div></td></tr>';
-  var emptyCardHTML = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>No elements in registry yet.<br>Run an audit and push results.</div>';
-
+  // TABLE (desktop)
   var tbody = document.getElementById('registry-tbody');
-  var cards = document.getElementById('registry-cards');
-
   if(!items.length) {
-    tbody.innerHTML = emptyHTML;
-    cards.innerHTML = emptyCardHTML;
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>' +
+      (allItems.length ? 'No elements match this filter.' : 'No elements yet. Set a baseline or run a gap analysis.') + '</div></td></tr>';
+  } else {
+    tbody.innerHTML = items.map(function(r) {
+      var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
+      var ver = (r.version || '').replace(/^v+/, '');
+      var si = STATUS_INFO[r.status] || { label: r.status };
+      return '<tr>' +
+        '<td><div class="reg-el-id">' + _esc(r.elId) + '</div></td>' +
+        '<td><div class="reg-el-type">' + _esc(r.elType) + '</div></td>' +
+        '<td><div class="reg-el-label">' + _esc(r.label || '—') + '</div></td>' +
+        '<td><select class="status-select" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
+          Object.keys(STATUS_INFO).map(function(s){
+            return '<option value="' + s + '"' + (r.status===s?' selected':'') + '>' + STATUS_INFO[s].label + '</option>';
+          }).join('') +
+        '</select></td>' +
+        '<td class="reg-note-cell"><textarea class="inline-note-input" placeholder="Note…" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note||'') + '</textarea></td>' +
+        '<td style="color:var(--t3);font-size:10px">v' + _esc(ver) + '</td>' +
+        '<td style="color:var(--t3);font-size:10px">' + _esc(proj?proj.name:'—') + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  // MOBILE: grouped collapsible rows with drill-down drawers
+  var cards = document.getElementById('registry-cards');
+  if(!allItems.length) {
+    cards.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-state-icon">📋</span>No elements yet.<br>Set a Baseline or run a Gap Analysis first.</div>';
     return;
   }
 
-  // TABLE rows (desktop)
-  tbody.innerHTML = items.map(function(r) {
-    var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
-    var ver = (r.version || '').replace(/^v+/, ''); // strip any leading v's
-    return '<tr>' +
-      '<td><div class="reg-el-id">' + _esc(r.elId) + '</div></td>' +
-      '<td><div class="reg-el-type">' + _esc(r.elType) + '</div></td>' +
-      '<td><div class="reg-el-label">' + _esc(r.label || '—') + '</div></td>' +
-      '<td>' +
-        '<select class="status-select" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
-          ['unchecked','ok','flagged','resolved'].map(function(s){
-            return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>';
-          }).join('') +
-        '</select>' +
-      '</td>' +
-      '<td class="reg-note-cell">' +
-        '<textarea class="inline-note-input" placeholder="Add note…" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note || '') + '</textarea>' +
-      '</td>' +
-      '<td style="color:var(--t3);font-size:10px">v' + _esc(ver) + '</td>' +
-      '<td style="color:var(--t3);font-size:10px">' + _esc(proj ? proj.name : '—') + '</td>' +
-    '</tr>';
-  }).join('');
+  // Build groups from ALL items (filter applied per-row for count display)
+  var groupHTML = '';
+  REG_GROUPS.forEach(function(grp) {
+    var grpAll = allItems.filter(function(r){ return regCategoryKey(r.elType) === grp.key; });
+    if(!grpAll.length) return;
 
-  // MOBILE CARDS — grouped by category
-  var groups = {};
-  var groupOrder = ['Buttons','Inputs','Forms','Links','Layout','Containers','Other'];
-  items.forEach(function(r) {
-    var cat = regCategory(r.elType);
-    if(!groups[cat]) groups[cat] = [];
-    groups[cat].push(r);
-  });
+    // Apply filter within group
+    var grpVisible = REG_FILTER === 'all' ? grpAll : grpAll.filter(function(r){ return r.status === REG_FILTER; });
+    if(REG_FILTER !== 'all' && !grpVisible.length) return;
 
-  var cardHTML = '';
-  groupOrder.forEach(function(cat) {
-    if(!groups[cat] || !groups[cat].length) return;
-    var g = groups[cat];
-    // Count by status for group header
-    var gFlagged = g.filter(function(r){ return r.status === 'flagged'; }).length;
-    var gUnchecked = g.filter(function(r){ return r.status === 'unchecked'; }).length;
-    var gOk = g.filter(function(r){ return r.status === 'ok'; }).length;
+    // Status counts
+    var counts = {};
+    grpAll.forEach(function(r){ counts[r.status] = (counts[r.status]||0)+1; });
+    var needsAttention = (counts.missing||0) + (counts.changed||0) + (counts.issue||0);
+    var isOpen = !!REG_OPEN_GROUPS[grp.key];
 
-    cardHTML += '<div class="reg-group">' +
-      '<div class="reg-group-header">' +
-        '<span class="reg-group-title">' + cat + '</span>' +
-        '<div class="reg-group-counts">' +
-          '<span class="reg-count-chip unchecked">' + gUnchecked + ' unchecked</span>' +
-          (gFlagged ? '<span class="reg-count-chip flagged">' + gFlagged + ' flagged</span>' : '') +
-          (gOk ? '<span class="reg-count-chip ok">' + gOk + ' ok</span>' : '') +
+    var countChips = '';
+    if(needsAttention) {
+      if(counts.missing) countChips += '<span class="reg-count-chip missing">' + counts.missing + ' missing</span>';
+      if(counts.changed) countChips += '<span class="reg-count-chip changed">' + counts.changed + ' updated</span>';
+      if(counts.issue)   countChips += '<span class="reg-count-chip issue">' + counts.issue + ' issue</span>';
+    } else {
+      countChips = '<span class="reg-count-chip ok">' + grpAll.length + ' working</span>';
+    }
+
+    groupHTML += '<div class="reg-group' + (isOpen?' open':'') + '" id="reg-group-' + grp.key + '">' +
+      '<div class="reg-group-header" onclick="toggleRegGroup(\'' + grp.key + '\')">' +
+        '<span class="reg-group-chevron">▶</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="reg-group-title">' + grp.label + '</div>' +
+          '<div class="reg-group-subtitle">' + grp.desc + '</div>' +
         '</div>' +
-      '</div>';
+        '<div class="reg-group-counts">' + countChips + '</div>' +
+      '</div>' +
+      '<div class="reg-group-body">';
 
-    g.forEach(function(r) {
-      var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
-      var ver = (r.version || '').replace(/^v+/, '');
-      var label = (r.label || '').trim();
-      // Remove arrow artifact — lone ← or similar single chars
-      if(label.length <= 2 && /^[←→↑↓←\-\–\—]$/.test(label)) label = '';
+    grpVisible.forEach(function(r) {
+      var label = (r.label||'').trim();
+      if(label.length <= 2 && /^[←→↑↓\-–—<>\/\\|]{1,3}$/.test(label)) label = '';
+      var ver = (r.version||'').replace(/^v+/,'');
+      var si = STATUS_INFO[r.status] || { label: r.status };
+      var isDrawerOpen = REG_OPEN_DRAWER == r.id;
+      var safeId = JSON.stringify(r.id);
 
-      cardHTML += '<div class="reg-card ' + r.status + '">' +
-        '<div class="reg-card-top">' +
-          '<span class="reg-card-id">' + _esc(r.elId) + '</span>' +
-          '<span class="badge ' + r.status + '">' + r.status + '</span>' +
+      groupHTML +=
+        '<div class="reg-row ' + r.status + '" onclick="toggleRegDrawer(' + safeId + ')">' +
+          '<div class="reg-row-id">' + _esc(r.elId) + '</div>' +
+          (label ? '<div class="reg-row-label">' + _esc(label) + '</div>' : '') +
+          '<div class="reg-row-status"><span class="status-pill ' + r.status + '"></span></div>' +
         '</div>' +
-        (label ? '<div class="reg-card-label-text">' + _esc(label) + '</div>' : '') +
-        '<div class="reg-card-inline-row">' +
-          '<select class="status-select reg-inline-select" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
-            ['unchecked','ok','flagged','resolved'].map(function(s){
-              return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>';
+        '<div class="reg-drawer' + (isDrawerOpen?' open':'') + '" id="reg-drawer-' + r.id + '">' +
+          '<div class="reg-drawer-header">' +
+            '<div class="reg-drawer-id">' + _esc(r.elId) + '</div>' +
+            '<button class="reg-drawer-close" onclick="event.stopPropagation();toggleRegDrawer(' + safeId + ')">✕</button>' +
+          '</div>' +
+          '<div class="reg-drawer-meta">' +
+            'Type: <span>' + _esc(r.elType) + '</span> &nbsp;·&nbsp; ' +
+            'Category: <span>' + grp.label + '</span> &nbsp;·&nbsp; ' +
+            'Version: <span>v' + _esc(ver) + '</span>' +
+            (r.note ? '<br>Note: <span>' + _esc(r.note) + '</span>' : '') +
+          '</div>' +
+          (si.desc ? '<div class="reg-drawer-desc"><strong style="color:' + (STATUS_INFO[r.status]?STATUS_INFO[r.status].color:'var(--t2)') + '">' + si.label + ':</strong> ' + si.desc + '</div>' : '') +
+          '<div class="reg-status-buttons">' +
+            Object.keys(STATUS_INFO).map(function(s){
+              return '<button class="reg-status-btn' + (r.status===s?' active-'+s:'') + '" onclick="event.stopPropagation();setRegStatusFromDrawer(' + safeId + ',\'' + s + '\')">' +
+                STATUS_INFO[s].label + '</button>';
             }).join('') +
-          '</select>' +
-          '<span class="reg-card-ver">v' + _esc(ver) + '</span>' +
-        '</div>' +
-        '<div class="reg-note-row">' +
-          '<input type="text" class="reg-note-inline" placeholder="Note…" value="' + _esc(r.note || '') + '" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' +
-        '</div>' +
-      '</div>';
+          '</div>' +
+          '<input type="text" class="reg-note-inline" placeholder="Add a note…" value="' + _esc(r.note||'') + '" ' +
+            'onclick="event.stopPropagation()" onblur="setRegNoteFromDrawer(' + safeId + ', this.value)">' +
+        '</div>';
     });
 
-    cardHTML += '</div>'; // /reg-group
+    groupHTML += '</div></div>'; // /reg-group-body /reg-group
   });
 
-  cards.innerHTML = cardHTML;
+  cards.innerHTML = groupHTML || '<div class="empty-state" style="padding:20px">No elements match this filter.</div>';
 }
 
 function setRegStatus(id, status) {
