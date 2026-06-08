@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#08090d">
 <title>AuditKit — PWA Code Auditor</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap');
@@ -39,22 +43,41 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  html, body {
+  html {
     height: 100%;
+    background: var(--bg0);
+    /* Allow the page to scroll naturally — works in all webview contexts */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body {
+    min-height: 100%;
     background: var(--bg0);
     color: var(--t1);
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
     line-height: 1.5;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── LAYOUT ── */
   #app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    /* No fixed height, no overflow:hidden — lets the browser chrome behave */
+  }
+
+  /* ── STICKY CHROME — header + nav stay pinned at the top ── */
+  #sticky-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    /* Safe area for notch/status bar */
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--bg1);
   }
 
   /* ── HEADER ── */
@@ -140,7 +163,11 @@
     background: var(--bg1);
     border-bottom: 1px solid var(--border1);
     flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  #nav::-webkit-scrollbar { display: none; }
 
   .nav-tab {
     height: 30px;
@@ -163,20 +190,20 @@
   /* ── MAIN CONTENT ── */
   #main {
     flex: 1;
-    overflow: hidden;
     position: relative;
+    /* No overflow:hidden — content scrolls with the page */
   }
 
   .screen {
     display: none;
-    height: 100%;
-    overflow-y: auto;
     padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    gap: 16px;
+    /* min-height fills the viewport below the sticky chrome */
+    min-height: calc(100vh - 88px);
   }
-  .screen.active { display: flex; flex-direction: column; gap: 16px; }
-  .screen::-webkit-scrollbar { width: 4px; }
-  .screen::-webkit-scrollbar-track { background: transparent; }
-  .screen::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+  .screen.active { display: flex; }
 
   /* ── CARDS ── */
   .card {
@@ -192,6 +219,8 @@
     justify-content: space-between;
     padding: 12px 16px;
     border-bottom: 1px solid var(--border1);
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .card-title {
@@ -318,7 +347,7 @@
   .project-meta-item { font-size: 10px; color: var(--t3); }
   .project-meta-item span { color: var(--t2); }
 
-  .project-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .project-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 
   /* new project form */
   #new-project-form {
@@ -672,7 +701,8 @@
   #dk-toggle {
     display: none;
     position: fixed;
-    bottom: 16px; left: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    left: 16px;
     width: 40px; height: 40px;
     border-radius: 50%;
     background: var(--bg2);
@@ -723,6 +753,7 @@
     border-radius: 12px 12px 0 0;
     overflow: hidden;
     box-shadow: 0 -8px 40px rgba(0,0,0,0.6);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   #dk-panel.open { display: flex; }
 
@@ -918,15 +949,287 @@
     color: var(--t1);
   }
 
-  @media (max-width: 600px) {
-    .audit-panels { grid-template-columns: 1fr; }
-    .diff-summary { grid-template-columns: repeat(2, 1fr); }
+  /* ── AUDIT TOOLBAR ── */
+  .audit-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border1);
+    background: var(--bg3);
+  }
+  .audit-toolbar-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .audit-project-select {
+    flex: 1;
+    height: 34px;
+    font-size: 13px;
+    min-width: 0;
+    width: 100%;
+  }
+  .gh-status-text {
+    font-size: 10px;
+    color: var(--teal);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── GITHUB PANEL ── */
+  #gh-panel {
+    display: none;
+    border-bottom: 1px solid var(--border1);
+    background: var(--bg3);
+  }
+  #gh-panel.open { display: block; }
+  .gh-panel-inner {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .gh-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 4px;
+  }
+  .gh-file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border1);
+    border-radius: var(--radius);
+    transition: all var(--trans);
+  }
+  .gh-file-name { flex: 1; font-size: 11px; color: var(--t1); word-break: break-all; }
+  .gh-file-path { font-size: 9px; color: var(--t3); }
+  .gh-slot-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ── MOBILE ICON ACTIONS (header) ── */
+  #header-actions-mobile {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .hdr-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--t2);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--trans);
+    flex-shrink: 0;
+  }
+  .hdr-icon-btn:hover { border-color: var(--border3); color: var(--t1); }
+  .hdr-icon-btn.primary {
+    background: var(--teal-dim);
+    border-color: var(--teal-border);
+    color: var(--teal);
+  }
+
+  /* ── SCROLL CHIP ROW — horizontal scroll, no wrap ── */
+  .scroll-chip-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px; /* prevent clipping of chip border on scroll */
+  }
+  .scroll-chip-row::-webkit-scrollbar { display: none; }
+  .scroll-chip-row .filter-chip { flex-shrink: 0; }
+
+  /* ── REGISTRY CARD LIST (mobile alternative to table) ── */
+  .registry-card-list {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .reg-card {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-left: 3px solid var(--border2);
+  }
+  .reg-card.ok { border-left-color: var(--green); }
+  .reg-card.flagged { border-left-color: var(--red); }
+  .reg-card.resolved { border-left-color: var(--blue); }
+  .reg-card.unchecked { border-left-color: var(--border3); }
+
+  .reg-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .reg-card-id { color: var(--teal); font-size: 12px; font-weight: 600; word-break: break-all; flex: 1; }
+  .reg-card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .reg-card-type { font-size: 10px; color: var(--t3); }
+  .reg-card-label { font-size: 11px; color: var(--t2); }
+  .reg-card-controls { display: flex; gap: 8px; align-items: center; }
+  .reg-card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--t3); }
+
+  /* ── LOG SUBMIT ROW ── */
+  .log-submit-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .log-submit-btn { flex-shrink: 0; }
+
+  /* ════════════════════════════════════════════
+     MOBILE — full responsive overrides
+     Breakpoints: 480px (phone), 600px (phablet), 768px (tablet)
+  ════════════════════════════════════════════ */
+
+  @media (max-width: 768px) {
+    html, body { font-size: 12px; }
+    /* No fixed height override needed — layout flows naturally */
+
+    .screen { min-height: calc(100vh - 90px); padding: 10px; gap: 10px; }
+    .screen.active { padding-bottom: calc(10px + env(safe-area-inset-bottom, 16px)); }
+    #header { padding: 0 12px; height: 46px; gap: 8px; }
+    #app-title { font-size: 15px; }
+    #ak-version-header { display: none; }
+    #active-project-label { display: none; }
+    #active-project-name { font-size: 10px; max-width: 100px; }
+    #header-actions { display: none; }
+    #header-actions-mobile { display: flex; }
+
+    /* NAV — full-width equal tabs, no overflow */
+    #nav { padding: 0 6px; height: 44px; gap: 3px; }
+    .nav-tab {
+      flex: 1;
+      padding: 0 4px;
+      font-size: 10px;
+      letter-spacing: 0;
+      height: 32px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* SCREENS */
+    .screen { padding: 10px; gap: 10px; }
+    .card-header { padding: 10px 12px; }
+    .card-body { padding: 10px 12px; }
+
+    /* INPUTS — 16px prevents iOS zoom */
+    input[type=text], input[type=url], input[type=password], select { font-size: 16px; }
+    textarea { font-size: 15px; }
+    .html-textarea { font-size: 13px; min-height: 120px; }
+    .inline-note-input { font-size: 14px; }
+    .status-select { font-size: 14px; }
+
+    /* BUTTONS — minimum 44px touch targets */
+    .btn { height: 38px; font-size: 12px; }
+    .btn.sm { height: 32px; font-size: 11px; padding: 0 10px; }
+
+    /* AUDIT */
+    .audit-panels { grid-template-columns: 1fr; gap: 10px; }
+    .diff-summary { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .diff-stat { padding: 10px 8px; }
+    .diff-stat-num { font-size: 18px; }
+
+    /* REGISTRY — hide table, show cards */
+    #registry-table-wrap { display: none; }
+    .registry-card-list { display: flex; }
+
+    /* REGISTRY card header — stack controls */
+    #screen-registry .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    #screen-registry .card-header .row { width: 100%; flex-wrap: wrap; }
+    #reg-project-sel { flex: 1; min-width: 0; height: 36px; font-size: 16px; }
+
+    /* LOG — cat buttons 2x2 grid */
+    .cat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cat-btn { height: 40px; font-size: 12px; justify-content: center; text-align: center; }
+
+    /* LOG submit row stack */
+    .log-submit-row { flex-direction: column; align-items: stretch; }
+    .log-submit-btn { width: 100%; justify-content: center; height: 44px; font-size: 13px; }
+    #log-project-sel { width: 100%; }
+
+    /* LOG entries card header */
+    #screen-log .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    #screen-log .card-header .row { width: 100%; }
+    #screen-log .card-header .btn { flex: 1; justify-content: center; }
+
+    /* PROJECT CARDS */
+    .project-card { padding: 12px; }
+    .project-name { font-size: 13px; }
+    .project-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .project-actions .btn { justify-content: center; height: 36px; }
+
+    /* DEVKIT */
+    #dk-panel { max-height: 78vh; border-radius: 16px 16px 0 0; }
+    #dk-panel-header { padding: 12px 14px; gap: 6px; }
+    .dk-tab-btn { height: 30px; padding: 0 8px; font-size: 10px; }
+    #dk-toggle { bottom: max(16px, env(safe-area-inset-bottom, 16px)); width: 44px; height: 44px; }
+
+    /* AI KEY ROW */
+    .ai-key-row { flex-wrap: wrap; gap: 8px; }
+    .ai-key-row input { font-size: 14px !important; }
+
+    /* MODAL */
+    #modal-overlay { padding: 12px; }
+    #modal-box { padding: 16px; }
+  }
+
+  /* ── Narrow phones ≤ 480px ── */
+  @media (max-width: 480px) {
+    .screen { min-height: calc(100vh - 82px); padding: 8px; gap: 8px; }
+    #header { height: 44px; padding: 0 10px; gap: 6px; }
+    #app-title { font-size: 14px; }
+    #active-project-name { max-width: 70px; font-size: 9px; }
+    .hdr-icon-btn { width: 30px; height: 30px; font-size: 14px; }
+    #nav { height: 40px; padding: 0 4px; gap: 2px; }
+    .nav-tab { font-size: 9px; height: 30px; }
+    .diff-stat-num { font-size: 16px; }
+    #dk-panel { max-height: 82vh; }
+  }
+
+  /* ── Landscape phones ── */
+  @media (max-width: 812px) and (orientation: landscape) {
+    #header { height: 36px; }
+    #nav { height: 34px; }
+    .nav-tab { height: 26px; font-size: 9px; }
+    .screen { padding: 6px 10px; gap: 8px; }
+    #dk-panel { max-height: 55vh; }
+    .cat-row { grid-template-columns: repeat(4, 1fr); }
+    .cat-btn { height: 32px; }
+  }
+
+  /* ── Tablet 601–768px — restore some desktop patterns ── */
+  @media (min-width: 601px) and (max-width: 768px) {
+    .audit-panels { grid-template-columns: 1fr 1fr; }
+    .diff-summary { grid-template-columns: repeat(4, 1fr); }
+    /* restore table on wider tablets */
+    #registry-table-wrap { display: block; }
+    .registry-card-list { display: none; }
   }
 </style>
 </head>
 <body>
 <div id="app">
 
+  <div id="sticky-chrome">
   <!-- HEADER -->
   <div id="header">
     <div id="app-title" onclick="dkHeaderTap()">Audit<span>Kit</span></div>
@@ -939,6 +1242,10 @@
       <button class="hdr-btn" onclick="showScreen('projects')">⊕ New Project</button>
       <button class="hdr-btn primary" onclick="doExport()">⬆ Export</button>
     </div>
+    <div id="header-actions-mobile">
+      <button class="hdr-icon-btn" onclick="showScreen('projects')" title="New Project">⊕</button>
+      <button class="hdr-icon-btn primary" onclick="doExport()" title="Export">⬆</button>
+    </div>
   </div>
 
   <!-- NAV -->
@@ -948,6 +1255,7 @@
     <button class="nav-tab" onclick="showScreen('registry')">Registry</button>
     <button class="nav-tab" onclick="showScreen('log')">Log</button>
   </div>
+  </div><!-- /sticky-chrome -->
 
   <!-- MAIN -->
   <div id="main">
@@ -998,13 +1306,41 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title">HTML Comparison</span>
-          <div class="row">
-            <select id="audit-project-sel" style="height:26px;font-size:10px;width:120px">
+        </div>
+
+        <!-- Project select + GitHub fetch toolbar -->
+        <div class="audit-toolbar">
+          <div class="audit-toolbar-row">
+            <select id="audit-project-sel" class="audit-project-select">
               <option value="">Select project…</option>
             </select>
-            <button class="btn teal sm" onclick="runAudit()">▶ Run Audit</button>
+            <button class="btn teal sm" onclick="runAudit()" style="flex-shrink:0">▶ Run Audit</button>
+          </div>
+          <div class="audit-toolbar-row">
+            <button class="btn sm" id="gh-toggle-btn" onclick="toggleGhPanel()" style="flex-shrink:0">⑂ GitHub Fetch</button>
+            <span id="gh-status" class="gh-status-text"></span>
           </div>
         </div>
+
+        <!-- GitHub fetch panel -->
+        <div id="gh-panel" class="gh-panel">
+          <div class="gh-panel-inner">
+            <div class="sec-label">Repository</div>
+            <div class="row">
+              <input type="text" id="gh-repo" placeholder="username/repo" style="flex:1">
+              <input type="text" id="gh-branch" placeholder="main" style="width:80px;flex-shrink:0">
+            </div>
+            <div class="row">
+              <input type="password" id="gh-token" placeholder="Token (private repos only — stored locally)" style="flex:1">
+            </div>
+            <div class="row">
+              <button class="btn teal sm" onclick="ghFetchFiles()">⑂ List HTML Files</button>
+              <button class="btn sm" onclick="saveGhSettings()">Save Settings</button>
+            </div>
+            <div id="gh-file-list" class="gh-file-list"></div>
+          </div>
+        </div>
+
         <div class="card-body col">
           <div class="audit-panels">
             <!-- VERSION A -->
@@ -1096,7 +1432,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="registry-controls" id="reg-filters">
+          <div class="scroll-chip-row" id="reg-filters">
             <button class="filter-chip active" onclick="setRegFilter('all',this)">All</button>
             <button class="filter-chip" onclick="setRegFilter('unchecked',this)">Unchecked</button>
             <button class="filter-chip" onclick="setRegFilter('ok',this)">OK</button>
@@ -1104,7 +1440,7 @@
             <button class="filter-chip" onclick="setRegFilter('resolved',this)">Resolved</button>
           </div>
         </div>
-        <div style="overflow-x:auto">
+        <div id="registry-table-wrap" style="overflow-x:auto">
           <table id="registry-table">
             <thead>
               <tr>
@@ -1120,6 +1456,8 @@
             <tbody id="registry-tbody"></tbody>
           </table>
         </div>
+        <!-- Mobile card view (hidden on desktop, shown on mobile via JS/CSS) -->
+        <div id="registry-cards" class="registry-card-list"></div>
       </div>
     </div>
 
@@ -1140,11 +1478,11 @@
           <button onclick="logClearRef()" style="background:none;border:none;color:var(--teal);cursor:pointer;font-size:13px;">✕</button>
         </div>
         <textarea id="log-msg" placeholder="Describe the issue, feature, or note…"></textarea>
-        <div class="row">
-          <select id="log-project-sel" style="flex:1;height:32px;font-size:11px">
+        <div class="log-submit-row">
+          <select id="log-project-sel" style="flex:1;height:36px;font-size:16px">
             <option value="">No project</option>
           </select>
-          <button class="btn teal" onclick="logSubmit()">Add Entry</button>
+          <button class="btn teal log-submit-btn" onclick="logSubmit()">Add Entry</button>
         </div>
       </div>
 
@@ -1158,7 +1496,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="cat-row" id="log-filter-row">
+          <div class="scroll-chip-row" id="log-filter-row">
             <button class="filter-chip active" onclick="setLogFilter('all',this)">All</button>
             <button class="filter-chip" onclick="setLogFilter('bug',this)">Bug</button>
             <button class="filter-chip" onclick="setLogFilter('ui',this)">UI</button>
@@ -1394,6 +1732,7 @@ function setActiveProject(id) {
   renderProjects();
   updateActiveProjectHeader();
   populateAllProjectSelects();
+  ghLoadSettings(); // refresh GitHub panel from new active project's repo
   toast('Active project set');
 }
 
@@ -1442,11 +1781,203 @@ function populateAllProjectSelects() {
   document.getElementById('reg-project-sel').innerHTML = opts3;
 }
 
-function populateAuditSelects() { populateAllProjectSelects(); }
+function populateAuditSelects() { populateAllProjectSelects(); ghLoadSettings(); }
 
 // ════════════════════════════════════════════════════════════════
-//  AUDIT / DIFF ENGINE
+//  GITHUB FETCH
 // ════════════════════════════════════════════════════════════════
+function toggleGhPanel() {
+  var panel = document.getElementById('gh-panel');
+  panel.classList.toggle('open');
+  document.getElementById('gh-toggle-btn').style.borderColor =
+    panel.classList.contains('open') ? 'var(--teal-border)' : '';
+}
+
+function ghLoadSettings() {
+  var repo = localStorage.getItem('ak_gh_repo') || '';
+  var branch = localStorage.getItem('ak_gh_branch') || 'main';
+  var token = localStorage.getItem('ak_gh_token') || '';
+
+  // Always normalize repo to short form (strip any full URL prefix)
+  repo = ghNormalizeRepo(repo);
+  if(repo) localStorage.setItem('ak_gh_repo', repo);
+
+  document.getElementById('gh-repo').value = repo;
+  document.getElementById('gh-branch').value = branch;
+  if(token) document.getElementById('gh-token').value = '••••••••';
+
+  // Pre-fill from active project repo URL if no repo saved yet
+  if(!repo && AK.activeProject) {
+    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
+    if(p && p.repo) {
+      var normalized = ghNormalizeRepo(p.repo);
+      if(normalized) {
+        document.getElementById('gh-repo').value = normalized;
+        localStorage.setItem('ak_gh_repo', normalized);
+      }
+    }
+  }
+}
+
+// Strip any URL prefix, return just "owner/repo"
+function ghNormalizeRepo(val) {
+  if(!val) return '';
+  val = val.trim().replace(/\.git$/, '');
+  var match = val.match(/github\.com[\/:]([^\/\s]+\/[^\/\s]+)/);
+  if(match) return match[1];
+  // Already short form — validate it looks like owner/repo
+  if(/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(val)) return val;
+  return val; // pass through and let API report error
+}
+
+function ghGetToken() {
+  var t = localStorage.getItem('ak_gh_token') || '';
+  var field = document.getElementById('gh-token').value;
+  // Use field value if it's not the masked placeholder
+  if(field && !field.startsWith('•')) return field;
+  return t;
+}
+
+// XHR wrapper — more reliable than fetch in WKWebView
+function xhrGet(url, headers) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    Object.keys(headers || {}).forEach(function(k) { xhr.setRequestHeader(k, headers[k]); });
+    xhr.onload = function() {
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: function(){ return Promise.resolve(xhr.responseText); }, json: function(){ return Promise.resolve(JSON.parse(xhr.responseText)); } });
+    };
+    xhr.onerror = function() { reject(new Error('Network error')); };
+    xhr.ontimeout = function() { reject(new Error('Request timed out')); };
+    xhr.timeout = 15000;
+    xhr.send();
+  });
+}
+
+function saveGhSettings() {
+  var repo = ghNormalizeRepo(document.getElementById('gh-repo').value);
+  var branch = document.getElementById('gh-branch').value.trim() || 'main';
+  var token = document.getElementById('gh-token').value.trim();
+
+  document.getElementById('gh-repo').value = repo; // show normalized form
+  localStorage.setItem('ak_gh_repo', repo);
+  localStorage.setItem('ak_gh_branch', branch);
+  if(token && !token.startsWith('•')) localStorage.setItem('ak_gh_token', token);
+  toast('GitHub settings saved');
+
+  // Backfill active project repo if not set
+  if(AK.activeProject && repo) {
+    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
+    if(p && !p.repo) { p.repo = 'https://github.com/' + repo; AK.save(); }
+  }
+}
+
+async function ghFetchFiles() {
+  var repo = ghNormalizeRepo(document.getElementById('gh-repo').value);
+  var branch = document.getElementById('gh-branch').value.trim() || 'main';
+  var token = ghGetToken();
+
+  if(!repo || !repo.includes('/')) { toast('Enter repo as: username/repo'); return; }
+
+  // Save normalized value back to field
+  document.getElementById('gh-repo').value = repo;
+
+  var statusEl = document.getElementById('gh-status');
+  var listEl = document.getElementById('gh-file-list');
+  statusEl.textContent = 'Fetching…';
+  listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--t3)">Connecting to GitHub…</div>';
+
+  var headers = { 'Accept': 'application/vnd.github.v3+json' };
+  if(token) headers['Authorization'] = 'token ' + token;
+
+  try {
+    var url = 'https://api.github.com/repos/' + repo + '/git/trees/' + branch + '?recursive=1';
+    var resp = await xhrGet(url, headers);
+
+    if(!resp.ok) {
+      var errData;
+      try { errData = await resp.json(); } catch(e) { errData = {}; }
+      var msg = (errData && errData.message) ? errData.message : ('HTTP ' + resp.status);
+      statusEl.textContent = '';
+      listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--red)">' +
+        '<strong>Error:</strong> ' + _esc(msg) +
+        (resp.status === 404 ? '<br><span style="color:var(--t3);margin-top:4px;display:block">Check that the repo and branch name are correct. Private repos require a token.</span>' : '') +
+        (resp.status === 403 ? '<br><span style="color:var(--t3);margin-top:4px;display:block">Rate limited or forbidden. Add a GitHub token to increase limits.</span>' : '') +
+      '</div>';
+      return;
+    }
+
+    var data = await resp.json();
+    var htmlFiles = (data.tree || []).filter(function(f) {
+      return f.type === 'blob' && (f.path.endsWith('.html') || f.path.endsWith('.htm'));
+    });
+
+    if(!htmlFiles.length) {
+      statusEl.textContent = 'No HTML files found';
+      listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--t3)">No .html files found in <strong>' + _esc(repo) + '</strong> on branch <strong>' + _esc(branch) + '</strong>.</div>';
+      return;
+    }
+
+    statusEl.textContent = htmlFiles.length + ' HTML file' + (htmlFiles.length > 1 ? 's' : '') + ' found';
+    listEl.innerHTML = htmlFiles.map(function(f) {
+      var name = f.path.split('/').pop();
+      var dir = f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')) : '(root)';
+      // Encode path safely for inline onclick
+      var safePath = f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return '<div class="gh-file-item">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="gh-file-name">' + _esc(name) + '</div>' +
+          '<div class="gh-file-path">' + _esc(dir) + '</div>' +
+        '</div>' +
+        '<div class="gh-slot-btns">' +
+          '<button class="btn sm teal" onclick="ghLoadIntoSlot(\'a\',\'' + safePath + '\')">→ A</button>' +
+          '<button class="btn sm" onclick="ghLoadIntoSlot(\'b\',\'' + safePath + '\')">→ B</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    localStorage.setItem('ak_gh_repo', repo);
+    localStorage.setItem('ak_gh_branch', branch);
+
+  } catch(e) {
+    statusEl.textContent = '';
+    listEl.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--red)"><strong>Connection failed</strong><br><span style="color:var(--t3)">' + _esc(e.message) + '</span>' +
+      '<br><span style="color:var(--t3);margin-top:4px;display:block">If you\'re viewing this inside Claude\'s app, try opening in Safari for GitHub fetch to work.</span></div>';
+  }
+}
+
+async function ghLoadIntoSlot(slot, path) {
+  var repo = ghNormalizeRepo(document.getElementById('gh-repo').value);
+  var branch = document.getElementById('gh-branch').value.trim() || 'main';
+  var token = ghGetToken();
+
+  var statusEl = document.getElementById('gh-status');
+  statusEl.textContent = 'Loading…';
+
+  // Try raw.githubusercontent.com first (no auth header needed for public)
+  var rawUrl = 'https://raw.githubusercontent.com/' + repo + '/' + branch + '/' + path;
+  var headers = token ? { 'Authorization': 'token ' + token } : {};
+
+  try {
+    var resp = await xhrGet(rawUrl, headers);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    var content = await resp.text();
+    document.getElementById('html-' + slot).value = content;
+
+    var filename = path.split('/').pop();
+    var zone = document.getElementById('drop-' + slot);
+    zone.textContent = '✓ ' + filename + ' (GitHub)';
+    zone.classList.add('has-file');
+
+    statusEl.textContent = '✓ ' + filename + ' → Slot ' + slot.toUpperCase();
+    toast('Loaded into Version ' + slot.toUpperCase() + ': ' + filename);
+
+  } catch(e) {
+    statusEl.textContent = 'Failed: ' + e.message;
+    toast('Could not load: ' + e.message);
+  }
+}
 function loadFile(slot, input) {
   var file = input.files[0];
   if(!file) return;
@@ -1636,12 +2167,19 @@ function renderRegistry() {
     return projMatch && statusMatch;
   });
 
+  var emptyHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>No elements in registry yet.<br>Run an audit and push results.</div></td></tr>';
+  var emptyCardHTML = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>No elements in registry yet.<br>Run an audit and push results.</div>';
+
   var tbody = document.getElementById('registry-tbody');
+  var cards = document.getElementById('registry-cards');
+
   if(!items.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>No elements in registry yet.<br>Run an audit and push results.</div></td></tr>';
+    tbody.innerHTML = emptyHTML;
+    cards.innerHTML = emptyCardHTML;
     return;
   }
 
+  // TABLE rows (desktop)
   tbody.innerHTML = items.map(function(r) {
     var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
     return '<tr>' +
@@ -1661,6 +2199,33 @@ function renderRegistry() {
       '<td style="color:var(--t3);font-size:10px">' + _esc(r.version || '—') + '</td>' +
       '<td style="color:var(--t3);font-size:10px">' + _esc(proj ? proj.name : '—') + '</td>' +
     '</tr>';
+  }).join('');
+
+  // CARD rows (mobile)
+  cards.innerHTML = items.map(function(r) {
+    var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
+    return '<div class="reg-card ' + r.status + '">' +
+      '<div class="reg-card-top">' +
+        '<span class="reg-card-id">' + _esc(r.elId) + '</span>' +
+        '<span class="badge ' + r.status + '">' + r.status + '</span>' +
+      '</div>' +
+      '<div class="reg-card-meta">' +
+        '<span class="reg-card-type">' + _esc(r.elType) + '</span>' +
+        (r.label ? '<span class="reg-card-label">· ' + _esc(r.label) + '</span>' : '') +
+      '</div>' +
+      '<div class="reg-card-controls">' +
+        '<select class="status-select" style="flex:1;font-size:14px;height:34px" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
+          ['unchecked','ok','flagged','resolved'].map(function(s){
+            return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>';
+          }).join('') +
+        '</select>' +
+      '</div>' +
+      '<textarea class="inline-note-input" placeholder="Add note…" style="font-size:14px;min-height:50px" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note || '') + '</textarea>' +
+      '<div class="reg-card-footer">' +
+        '<span>v' + _esc(r.version || '?') + '</span>' +
+        '<span>' + _esc(proj ? proj.name : '—') + '</span>' +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -2209,6 +2774,18 @@ renderProjects();
 populateAllProjectSelects();
 updateActiveProjectHeader();
 loadApiKeyToInput();
+
+// Clean up any previously stored full GitHub URLs to short form
+(function() {
+  var stored = localStorage.getItem('ak_gh_repo');
+  if(stored) {
+    var normalized = stored.trim().replace(/\.git$/, '');
+    var match = normalized.match(/github\.com[\/:]([^\/\s]+\/[^\/\s]+)/);
+    if(match) {
+      localStorage.setItem('ak_gh_repo', match[1]);
+    }
+  }
+})();
 </script>
 </body>
 </html>
