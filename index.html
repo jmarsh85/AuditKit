@@ -1014,6 +1014,17 @@
   .gh-file-path { font-size: 9px; color: var(--t3); }
   .gh-slot-btns { display: flex; gap: 6px; flex-shrink: 0; }
 
+  .slot-info {
+    font-size: 11px;
+    color: var(--teal);
+    background: var(--teal-dim);
+    border: 1px solid var(--teal-border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    margin-top: 4px;
+    word-break: break-all;
+  }
+
   /* ── MOBILE ICON ACTIONS (header) ── */
   #header-actions-mobile {
     display: none;
@@ -1086,6 +1097,92 @@
   .reg-card-label { font-size: 11px; color: var(--t2); }
   .reg-card-controls { display: flex; gap: 8px; align-items: center; }
   .reg-card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--t3); }
+
+  /* ── REGISTRY GROUPS ── */
+  .reg-group { margin-bottom: 4px; }
+
+  .reg-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px 6px;
+    gap: 8px;
+  }
+
+  .reg-group-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--t2);
+  }
+
+  .reg-group-counts { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .reg-count-chip {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+  }
+  .reg-count-chip.unchecked { background: var(--bg4); color: var(--t3); }
+  .reg-count-chip.flagged { background: var(--red-dim); color: var(--red); }
+  .reg-count-chip.ok { background: var(--green-dim); color: var(--green); }
+
+  /* ── COMPACT REG CARDS ── */
+  .reg-card {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-left: 3px solid var(--border2);
+    margin: 0 12px 4px;
+  }
+  .reg-card.ok { border-left-color: var(--green); }
+  .reg-card.flagged { border-left-color: var(--red); }
+  .reg-card.resolved { border-left-color: var(--blue); border-left-color: var(--blue); opacity: 0.6; }
+  .reg-card.unchecked { border-left-color: var(--border3); }
+
+  .reg-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .reg-card-id { color: var(--teal); font-size: 11px; font-weight: 600; word-break: break-all; flex: 1; }
+  .reg-card-label-text { font-size: 10px; color: var(--t2); padding-left: 1px; }
+
+  .reg-card-inline-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .reg-inline-select {
+    flex: 1;
+    height: 30px;
+    font-size: 14px;
+    padding: 0 6px;
+  }
+
+  .reg-card-ver { font-size: 9px; color: var(--t3); white-space: nowrap; flex-shrink: 0; }
+
+  .reg-note-row { display: flex; }
+
+  .reg-note-inline {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border1);
+    border-radius: 4px;
+    color: var(--t2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color var(--trans);
+    height: 30px;
+  }
+  .reg-note-inline:focus { border-color: var(--teal-border); color: var(--t1); }
 
   /* ── LOG SUBMIT ROW ── */
   .log-submit-row {
@@ -1306,6 +1403,7 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title">HTML Comparison</span>
+          <button class="btn sm red" id="audit-clear-btn" onclick="clearAudit()" style="display:none">✕ Clear</button>
         </div>
 
         <!-- Project select + GitHub fetch toolbar -->
@@ -1346,39 +1444,42 @@
             <!-- VERSION A -->
             <div class="html-input-zone">
               <div class="html-input-header">
-                <span class="html-input-label">Version A — Base</span>
+                <span class="html-input-label">Version A — Base (GitHub/Stable)</span>
                 <button class="btn sm" onclick="document.getElementById('file-a').click()">📂 File</button>
                 <input type="file" id="file-a" accept=".html,.htm" onchange="loadFile('a', this)">
               </div>
               <div class="html-input-body">
                 <div class="drop-zone" id="drop-a" onclick="document.getElementById('file-a').click()"
                   ondragover="event.preventDefault()" ondrop="dropFile('a',event)">
-                  Drop .html file or tap to browse
+                  Drop .html or tap to browse
                 </div>
-                <div class="or-divider">or paste</div>
-                <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…"></textarea>
+                <div id="slot-a-info" class="slot-info" style="display:none"></div>
+                <!-- textarea hidden after load to avoid rendering overhead -->
+                <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…" style="display:none"></textarea>
+                <button class="btn sm" id="slot-a-paste-btn" onclick="toggleSlotPaste('a')" style="margin-top:6px">✎ Paste instead</button>
               </div>
             </div>
             <!-- VERSION B -->
             <div class="html-input-zone">
               <div class="html-input-header">
-                <span class="html-input-label">Version B — Updated</span>
+                <span class="html-input-label">Version B — Updated (Claude)</span>
                 <button class="btn sm" onclick="document.getElementById('file-b').click()">📂 File</button>
                 <input type="file" id="file-b" accept=".html,.htm" onchange="loadFile('b', this)">
               </div>
               <div class="html-input-body">
                 <div class="drop-zone" id="drop-b" onclick="document.getElementById('file-b').click()"
                   ondragover="event.preventDefault()" ondrop="dropFile('b',event)">
-                  Drop .html file or tap to browse
+                  Drop .html or tap to browse
                 </div>
-                <div class="or-divider">or paste</div>
-                <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…"></textarea>
+                <div id="slot-b-info" class="slot-info" style="display:none"></div>
+                <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…" style="display:none"></textarea>
+                <button class="btn sm" id="slot-b-paste-btn" onclick="toggleSlotPaste('b')" style="margin-top:6px">✎ Paste instead</button>
               </div>
             </div>
           </div>
 
           <div class="row">
-            <button class="btn teal full" onclick="runAudit()">▶ Run Audit &amp; Compare</button>
+            <button class="btn teal full" onclick="runAudit()">▶ Run Gap Analysis</button>
           </div>
         </div>
       </div>
@@ -1387,12 +1488,23 @@
       <div id="audit-results">
         <div class="diff-summary" id="diff-summary"></div>
 
+        <!-- Gap framing: expected vs unexpected -->
+        <div class="card" id="diff-expected-card" style="display:none">
+          <div class="card-header">
+            <span class="card-title" style="color:var(--amber)">⚠ Review Required</span>
+            <span id="diff-unexpected-count" class="badge flagged"></span>
+          </div>
+          <div class="card-body">
+            <div id="diff-unexpected-list"></div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Gaps &amp; Changes</span>
+            <span class="card-title">All Changes</span>
             <div class="row">
-              <button class="btn sm" onclick="pushToRegistry()">→ Push to Registry</button>
-              <button class="btn purple sm" onclick="triggerAiSummary()">✦ AI Summary</button>
+              <button class="btn sm" onclick="syncRegistry()">⟳ Sync Registry</button>
+              <button class="btn purple sm" onclick="triggerAiSummary()">✦ AI Export</button>
             </div>
           </div>
           <div class="card-body">
@@ -1403,10 +1515,10 @@
         <!-- AI PANEL -->
         <div id="ai-panel" class="card">
           <div class="card-header">
-            <span class="card-title">✦ AI Summary</span>
+            <span class="card-title">✦ AI Export Summary</span>
             <button class="btn teal sm" onclick="triggerAiSummary()">Run</button>
           </div>
-          <div id="ai-output">Flagged and unresolved items will be summarised here.</div>
+          <div id="ai-output">Run a gap analysis to generate an AI summary of expected vs. unexpected changes.</div>
           <div class="ai-key-row">
             <span class="ai-key-label">API Key:</span>
             <input type="password" id="api-key-input" placeholder="sk-ant-…" style="flex:1;height:26px;font-size:10px"
@@ -1423,15 +1535,20 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title">Element Registry</span>
-          <div class="row">
-            <select id="reg-project-sel" style="height:26px;font-size:10px;width:120px" onchange="renderRegistry()">
+        </div>
+        <div class="audit-toolbar">
+          <div class="audit-toolbar-row">
+            <select id="reg-project-sel" class="audit-project-select" onchange="renderRegistry()">
               <option value="">All projects…</option>
             </select>
-            <button class="btn sm" onclick="clearResolvedRegistry()">Clear Resolved</button>
-            <button class="btn teal sm" onclick="doExportRegistry()">⬆ Export</button>
+            <button class="btn teal sm" onclick="doExportRegistry()" style="flex-shrink:0">⬆ Export</button>
+          </div>
+          <div class="audit-toolbar-row">
+            <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
+            <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
           </div>
         </div>
-        <div class="card-body">
+        <div class="card-body" style="padding-bottom:8px">
           <div class="scroll-chip-row" id="reg-filters">
             <button class="filter-chip active" onclick="setRegFilter('all',this)">All</button>
             <button class="filter-chip" onclick="setRegFilter('unchecked',this)">Unchecked</button>
@@ -1702,28 +1819,74 @@ function renderProjects() {
     var regCount = AK.registry.filter(function(r){ return r.projectId === p.id; }).length;
     var logCount = AK.log.filter(function(l){ return l.projectId === p.id; }).length;
     var flagged = AK.registry.filter(function(r){ return r.projectId === p.id && r.status === 'flagged'; }).length;
+    var unchecked = AK.registry.filter(function(r){ return r.projectId === p.id && r.status === 'unchecked'; }).length;
     return '<div class="project-card' + (isActive ? ' active-proj' : '') + '" onclick="setActiveProject(' + p.id + ')">' +
       '<div class="project-card-top">' +
         '<span class="project-name">' + _esc(p.name) + '</span>' +
-        '<span class="badge ' + p.status + '">' + p.status + '</span>' +
-        (isActive ? '<span class="badge ok">active</span>' : '') +
+        '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0">' +
+          '<span class="badge ' + p.status + '">' + p.status + '</span>' +
+          (isActive ? '<span class="badge ok">active</span>' : '') +
+        '</div>' +
       '</div>' +
       '<div class="project-meta">' +
-        '<span class="project-meta-item">version: <span>' + _esc(p.version) + '</span></span>' +
+        '<span class="project-meta-item">ver: <span>' + _esc(p.version) + '</span></span>' +
         '<span class="project-meta-item">elements: <span>' + regCount + '</span></span>' +
         '<span class="project-meta-item">log: <span>' + logCount + '</span></span>' +
         (flagged ? '<span class="project-meta-item" style="color:var(--red)">flagged: <span>' + flagged + '</span></span>' : '') +
-        (p.repo ? '<span class="project-meta-item">repo: <span><a href="' + _esc(p.repo) + '" target="_blank" style="color:var(--teal);text-decoration:none">' + _esc(p.repo.replace('https://github.com/','')) + '</a></span></span>' : '') +
+        (unchecked ? '<span class="project-meta-item" style="color:var(--amber)">unchecked: <span>' + unchecked + '</span></span>' : '') +
+        (p.repo ? '<span class="project-meta-item" style="width:100%">repo: <span><a href="' + _esc(p.repo) + '" target="_blank" style="color:var(--teal);text-decoration:none">' + _esc(p.repo.replace('https://github.com/','')) + '</a></span></span>' : '') +
       '</div>' +
-      (p.notes ? '<div style="font-size:10px;color:var(--t3);margin-top:6px">' + _esc(p.notes) + '</div>' : '') +
+      (p.notes ? '<div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5">' + _esc(p.notes) + '</div>' : '') +
       '<div class="project-actions">' +
-        '<button class="btn sm teal" onclick="event.stopPropagation();setActiveProject(' + p.id + ')">Set Active</button>' +
+        (isActive ? '' : '<button class="btn sm teal" onclick="event.stopPropagation();setActiveProject(' + p.id + ')">Set Active</button>') +
         '<button class="btn sm" onclick="event.stopPropagation();markStable(' + p.id + ')">✓ Stable</button>' +
-        '<button class="btn sm amber" onclick="event.stopPropagation();editProjectVersion(' + p.id + ')">Version</button>' +
+        '<button class="btn sm amber" onclick="event.stopPropagation();openEditProject(' + p.id + ')">✎ Edit</button>' +
         '<button class="btn sm red" onclick="event.stopPropagation();deleteProject(' + p.id + ')">Delete</button>' +
       '</div>' +
     '</div>';
   }).join('');
+}
+
+function openEditProject(id) {
+  var p = AK.projects.find(function(x){ return x.id === id; });
+  if(!p) return;
+  openModal('Edit Project',
+    '<div class="col">' +
+      '<div class="sec-label">Project Name</div>' +
+      '<input type="text" id="edit-p-name" value="' + _esc(p.name) + '">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Version</div>' +
+      '<input type="text" id="edit-p-version" value="' + _esc(p.version) + '">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">GitHub Repo URL</div>' +
+      '<input type="url" id="edit-p-repo" value="' + _esc(p.repo || '') + '">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Notes</div>' +
+      '<textarea id="edit-p-notes" style="min-height:60px">' + _esc(p.notes || '') + '</textarea>' +
+    '</div>',
+    '<button class="btn teal" onclick="saveEditProject(' + id + ')">Save Changes</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function saveEditProject(id) {
+  var p = AK.projects.find(function(x){ return x.id === id; });
+  if(!p) return;
+  var name = document.getElementById('edit-p-name').value.trim();
+  if(!name) { toast('Name required'); return; }
+  p.name = name;
+  p.version = document.getElementById('edit-p-version').value.trim() || p.version;
+  p.repo = document.getElementById('edit-p-repo').value.trim();
+  p.notes = document.getElementById('edit-p-notes').value.trim();
+  AK.save();
+  closeModal();
+  renderProjects();
+  updateActiveProjectHeader();
+  populateAllProjectSelects();
+  toast('Project updated');
 }
 
 function setActiveProject(id) {
@@ -1964,11 +2127,16 @@ async function ghLoadIntoSlot(slot, path) {
 
     var content = await resp.text();
     document.getElementById('html-' + slot).value = content;
+    document.getElementById('html-' + slot).style.display = 'none'; // hide — content stored, not rendered
 
     var filename = path.split('/').pop();
     var zone = document.getElementById('drop-' + slot);
     zone.textContent = '✓ ' + filename + ' (GitHub)';
     zone.classList.add('has-file');
+
+    var info = document.getElementById('slot-' + slot + '-info');
+    info.textContent = '✓ ' + filename + ' — ' + Math.round(content.length / 1024) + ' KB (GitHub)';
+    info.style.display = 'block';
 
     statusEl.textContent = '✓ ' + filename + ' → Slot ' + slot.toUpperCase();
     toast('Loaded into Version ' + slot.toUpperCase() + ': ' + filename);
@@ -1978,12 +2146,46 @@ async function ghLoadIntoSlot(slot, path) {
     toast('Could not load: ' + e.message);
   }
 }
+// ── Slot paste toggle (hide/show textarea to avoid rendering overhead)
+function toggleSlotPaste(slot) {
+  var ta = document.getElementById('html-' + slot);
+  var btn = document.getElementById('slot-' + slot + '-paste-btn');
+  var showing = ta.style.display !== 'none';
+  ta.style.display = showing ? 'none' : 'block';
+  btn.textContent = showing ? '✎ Paste instead' : '▲ Hide paste area';
+}
+
+function clearAudit() {
+  ['a','b'].forEach(function(slot) {
+    document.getElementById('html-' + slot).value = '';
+    document.getElementById('html-' + slot).style.display = 'none';
+    var zone = document.getElementById('drop-' + slot);
+    zone.textContent = 'Drop .html or tap to browse';
+    zone.classList.remove('has-file');
+    var info = document.getElementById('slot-' + slot + '-info');
+    info.style.display = 'none'; info.textContent = '';
+    document.getElementById('slot-' + slot + '-paste-btn').textContent = '✎ Paste instead';
+    document.getElementById('file-' + slot).value = '';
+  });
+  document.getElementById('audit-results').classList.remove('visible');
+  document.getElementById('audit-clear-btn').style.display = 'none';
+  document.getElementById('diff-expected-card').style.display = 'none';
+  document.getElementById('ai-output').textContent = 'Run a gap analysis to generate an AI summary of expected vs. unexpected changes.';
+  AK.lastDiff = null;
+  toast('Audit cleared');
+}
+
 function loadFile(slot, input) {
   var file = input.files[0];
   if(!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
     document.getElementById('html-' + slot).value = e.target.result;
+    // Don't show the textarea — show a compact info chip instead
+    document.getElementById('html-' + slot).style.display = 'none';
+    var info = document.getElementById('slot-' + slot + '-info');
+    info.textContent = '✓ ' + file.name + ' — ' + Math.round(e.target.result.length / 1024) + ' KB';
+    info.style.display = 'block';
     var zone = document.getElementById('drop-' + slot);
     zone.textContent = '✓ ' + file.name;
     zone.classList.add('has-file');
@@ -2001,6 +2203,10 @@ function dropFile(slot, e) {
   var reader = new FileReader();
   reader.onload = function(ev) {
     document.getElementById('html-' + slot).value = ev.target.result;
+    document.getElementById('html-' + slot).style.display = 'none';
+    var info = document.getElementById('slot-' + slot + '-info');
+    info.textContent = '✓ ' + file.name + ' — ' + Math.round(ev.target.result.length / 1024) + ' KB';
+    info.style.display = 'block';
     var zone = document.getElementById('drop-' + slot);
     zone.textContent = '✓ ' + file.name;
     zone.classList.add('has-file');
@@ -2013,23 +2219,24 @@ function parseHTML(src) {
   var parser = new DOMParser();
   var doc = parser.parseFromString(src, 'text/html');
   var elements = [];
-  var selectors = 'button,input,select,textarea,a,form,div[id],span[id],section,nav,header,footer,main,aside,[data-screen],[onclick],[class]';
+  var selectors = 'button,input,select,textarea,a,form,div[id],span[id],section,nav,header,footer,main,aside,[data-screen],[onclick]';
 
   doc.querySelectorAll(selectors).forEach(function(el) {
     var id = el.id ? '#' + el.id : null;
     var cls = el.className && typeof el.className === 'string' && el.className.trim()
-      ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.')
+      ? '.' + el.className.trim().split(/\s+/)[0]
       : null;
     var key = id || cls || el.tagName.toLowerCase();
-    var label = (el.textContent || '').trim().slice(0, 60)
-      || el.getAttribute('placeholder') || el.getAttribute('title')
-      || el.getAttribute('alt') || el.getAttribute('name') || '';
+    var rawLabel = (el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
+    // Filter out label noise: pure arrows, single chars, long code blobs
+    var label = rawLabel.length > 1 && !/^[←→↑↓\-–—<>\/\\|]{1,3}$/.test(rawLabel)
+      ? rawLabel
+      : el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('aria-label') || el.getAttribute('name') || '';
     var type = el.tagName.toLowerCase();
     if(el.getAttribute('type')) type += '[' + el.getAttribute('type') + ']';
     elements.push({ key: key, id: id, cls: cls, type: type, label: label, tag: el.tagName.toLowerCase() });
   });
 
-  // Deduplicate by key
   var seen = {};
   return elements.filter(function(e) {
     if(seen[e.key]) return false;
@@ -2041,110 +2248,185 @@ function parseHTML(src) {
 function runAudit() {
   var srcA = document.getElementById('html-a').value.trim();
   var srcB = document.getElementById('html-b').value.trim();
-  if(!srcA || !srcB) { toast('Paste or load both HTML versions first'); return; }
+  if(!srcA || !srcB) { toast('Load both versions first (GitHub fetch or File or Paste)'); return; }
 
   var elsA = parseHTML(srcA);
   var elsB = parseHTML(srcB);
-
   var mapA = {}; elsA.forEach(function(e){ mapA[e.key] = e; });
   var mapB = {}; elsB.forEach(function(e){ mapB[e.key] = e; });
 
   var added = [], removed = [], changed = [];
-
   Object.keys(mapB).forEach(function(k) {
     if(!mapA[k]) added.push(mapB[k]);
-    else if(mapA[k].type !== mapB[k].type || mapA[k].label !== mapB[k].label) {
-      changed.push({ el: mapB[k], was: mapA[k] });
-    }
+    else if(mapA[k].type !== mapB[k].type) changed.push({ el: mapB[k], was: mapA[k] });
   });
   Object.keys(mapA).forEach(function(k) {
     if(!mapB[k]) removed.push(mapA[k]);
   });
 
-  AK.lastDiff = { added: added, removed: removed, changed: changed, elsA: elsA, elsB: elsB };
+  // Classify changes: "unexpected" = elements that were in the known registry as OK/stable but are now removed or changed
+  var projId = parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
+  var knownOk = AK.registry.filter(function(r){ return r.projectId == projId && (r.status === 'ok' || r.status === 'resolved'); });
+  var unexpected = removed.filter(function(e){
+    return knownOk.some(function(r){ return r.elId === e.key; });
+  });
 
-  // Summary
+  AK.lastDiff = { added: added, removed: removed, changed: changed, elsA: elsA, elsB: elsB, unexpected: unexpected, projId: projId };
+
+  // Summary stats
   var sum = document.getElementById('diff-summary');
   sum.innerHTML =
-    '<div class="diff-stat total"><div class="diff-stat-num">' + elsB.length + '</div><div class="diff-stat-label">Total (B)</div></div>' +
+    '<div class="diff-stat total"><div class="diff-stat-num">' + elsB.length + '</div><div class="diff-stat-label">Elements (B)</div></div>' +
     '<div class="diff-stat added"><div class="diff-stat-num">' + added.length + '</div><div class="diff-stat-label">Added</div></div>' +
     '<div class="diff-stat removed"><div class="diff-stat-num">' + removed.length + '</div><div class="diff-stat-label">Removed</div></div>' +
     '<div class="diff-stat changed"><div class="diff-stat-num">' + changed.length + '</div><div class="diff-stat-label">Changed</div></div>';
 
-  // Items
+  // Unexpected removals card
+  var unexpCard = document.getElementById('diff-expected-card');
+  var unexpList = document.getElementById('diff-unexpected-list');
+  var unexpCount = document.getElementById('diff-unexpected-count');
+  if(unexpected.length) {
+    unexpCard.style.display = 'block';
+    unexpCount.textContent = unexpected.length + ' irregular';
+    unexpList.innerHTML = unexpected.map(function(e){
+      return '<div class="diff-item removed">' +
+        '<div class="diff-icon">!</div>' +
+        '<div class="diff-content">' +
+          '<div class="diff-type">Was OK — now missing</div>' +
+          '<div class="diff-desc">' + _esc(e.key) + '</div>' +
+          '<div class="diff-detail">' + _esc(e.type) + (e.label ? ' · "' + _esc(e.label) + '"' : '') + '</div>' +
+        '</div></div>';
+    }).join('');
+  } else {
+    unexpCard.style.display = 'none';
+  }
+
+  // All changes list
   var list = document.getElementById('diff-list');
   var html = '';
   if(!added.length && !removed.length && !changed.length) {
-    html = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">✓</span>No differences detected between versions.</div>';
+    html = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">✓</span>No differences detected. Versions match.</div>';
   }
   added.forEach(function(e) {
-    html += '<div class="diff-item added">' +
-      '<div class="diff-icon">+</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type">Added — ' + _esc(e.type) + '</div>' +
-        '<div class="diff-desc">' + _esc(e.key) + '</div>' +
-        (e.label ? '<div class="diff-detail">' + _esc(e.label) + '</div>' : '') +
+    html += '<div class="diff-item added"><div class="diff-icon">+</div><div class="diff-content">' +
+      '<div class="diff-type">Added · ' + _esc(e.type) + '</div>' +
+      '<div class="diff-desc">' + _esc(e.key) + '</div>' +
+      (e.label ? '<div class="diff-detail">' + _esc(e.label) + '</div>' : '') +
       '</div></div>';
   });
   removed.forEach(function(e) {
-    html += '<div class="diff-item removed">' +
-      '<div class="diff-icon">−</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type">Removed — ' + _esc(e.type) + '</div>' +
-        '<div class="diff-desc">' + _esc(e.key) + '</div>' +
-        (e.label ? '<div class="diff-detail">' + _esc(e.label) + '</div>' : '') +
+    var wasKnown = knownOk.some(function(r){ return r.elId === e.key; });
+    html += '<div class="diff-item removed"' + (wasKnown ? ' style="border-left-color:var(--red);border-left-width:4px"' : '') + '>' +
+      '<div class="diff-icon">−</div><div class="diff-content">' +
+      '<div class="diff-type">Removed · ' + _esc(e.type) + (wasKnown ? ' <span style="color:var(--red)">⚠ was OK</span>' : '') + '</div>' +
+      '<div class="diff-desc">' + _esc(e.key) + '</div>' +
+      (e.label ? '<div class="diff-detail">' + _esc(e.label) + '</div>' : '') +
       '</div></div>';
   });
   changed.forEach(function(c) {
-    html += '<div class="diff-item changed">' +
-      '<div class="diff-icon">~</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type">Changed — ' + _esc(c.el.type) + '</div>' +
-        '<div class="diff-desc">' + _esc(c.el.key) + '</div>' +
-        '<div class="diff-detail">was: ' + _esc(c.was.type) + (c.was.label ? ' · "' + _esc(c.was.label) + '"' : '') + '</div>' +
+    html += '<div class="diff-item changed"><div class="diff-icon">~</div><div class="diff-content">' +
+      '<div class="diff-type">Changed · ' + _esc(c.el.type) + '</div>' +
+      '<div class="diff-desc">' + _esc(c.el.key) + '</div>' +
+      '<div class="diff-detail">was: ' + _esc(c.was.type) + '</div>' +
       '</div></div>';
   });
-  list.innerHTML = html || '<div class="empty-state" style="padding:20px">No gaps found.</div>';
+  list.innerHTML = html;
 
   document.getElementById('audit-results').classList.add('visible');
-  toast('Audit complete — ' + (added.length + removed.length + changed.length) + ' differences found');
+  document.getElementById('audit-clear-btn').style.display = 'inline-flex';
+  toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' differences, ' + unexpected.length + ' irregular');
 }
 
-function pushToRegistry() {
-  if(!AK.lastDiff) { toast('Run an audit first'); return; }
-  var projId = parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
+// Smart registry sync: add new, flag removed, carry forward OK items
+function syncRegistry() {
+  if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
+  var projId = AK.lastDiff.projId || parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   var version = proj ? proj.version : 'unknown';
-  var count = 0;
+  var added = 0, flagged = 0;
 
-  var allEls = AK.lastDiff.elsB;
-  allEls.forEach(function(e) {
-    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId === projId; });
+  // Add new elements from Version B
+  AK.lastDiff.elsB.forEach(function(e) {
+    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(!exists) {
-      AK.registry.push({
-        id: Date.now() + Math.random(),
-        projectId: projId || null,
-        elId: e.key,
-        elType: e.type,
-        label: e.label,
-        status: 'unchecked',
-        note: '',
-        version: version,
-        ts: new Date().toISOString()
-      });
-      count++;
+      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
+        elType: e.type, label: e.label, status: 'unchecked', note: '', version: version, ts: new Date().toISOString() });
+      added++;
+    } else {
+      // Update label/type if changed
+      if(e.label && e.label !== exists.label) exists.label = e.label;
     }
   });
 
-  // Also flag removed items
+  // Flag removed elements (only if they were in registry)
   AK.lastDiff.removed.forEach(function(e) {
-    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId === projId; });
-    if(exists) { exists.status = 'flagged'; exists.note = 'Removed in latest version'; }
+    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
+    if(exists && exists.status !== 'flagged') {
+      exists.status = 'flagged';
+      exists.note = (exists.note ? exists.note + ' | ' : '') + 'Removed in ' + version;
+      flagged++;
+    }
   });
 
   AK.save();
-  toast(count + ' elements pushed to Registry');
+  showScreen('registry');
+  toast('Registry synced — ' + added + ' added, ' + flagged + ' flagged');
+}
+
+// Baseline: scan a single HTML file and set as project registry from scratch
+function showBaselineOptions() {
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  if(!proj) { toast('Select a project first'); return; }
+  openModal(
+    'Set Baseline for: ' + proj.name,
+    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:8px">' +
+      'This scans a single HTML file and rebuilds the element registry for this project from scratch. ' +
+      'Existing entries will be <strong style="color:var(--amber)">replaced</strong>. ' +
+      'Use the GitHub-stable or last-known-good version.' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Load HTML File</div>' +
+      '<input type="file" id="baseline-file-input" accept=".html,.htm" style="display:block;color:var(--t2);font-size:12px">' +
+    '</div>' +
+    '<div class="or-divider" style="margin:8px 0">or paste</div>' +
+    '<textarea id="baseline-paste" placeholder="Paste HTML source…" style="min-height:80px;font-size:13px"></textarea>',
+    '<button class="btn teal" onclick="applyBaseline(' + proj.id + ')">⊙ Set as Baseline</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+
+  // Wire up file input inside modal
+  setTimeout(function() {
+    var fi = document.getElementById('baseline-file-input');
+    if(fi) fi.onchange = function() {
+      var f = fi.files[0];
+      if(!f) return;
+      var r = new FileReader();
+      r.onload = function(e) { document.getElementById('baseline-paste').value = e.target.result; toast('File loaded — tap Set as Baseline'); };
+      r.readAsText(f);
+    };
+  }, 100);
+}
+
+function applyBaseline(projId) {
+  var src = document.getElementById('baseline-paste').value.trim();
+  if(!src) { toast('Load or paste HTML first'); return; }
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var version = proj ? proj.version : 'baseline';
+  var els = parseHTML(src);
+
+  // Remove existing registry for this project and rebuild
+  AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
+  els.forEach(function(e) {
+    AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
+      elType: e.type, label: e.label, status: 'unchecked', note: 'Baseline set ' + new Date().toLocaleDateString(),
+      version: version, ts: new Date().toISOString() });
+  });
+
+  AK.save();
+  closeModal();
   renderRegistry();
+  toast('Baseline set — ' + els.length + ' elements mapped for ' + (proj ? proj.name : 'project'));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2157,6 +2439,18 @@ function setRegFilter(f, btn) {
   document.querySelectorAll('#reg-filters .filter-chip').forEach(function(c){ c.classList.remove('active'); });
   btn.classList.add('active');
   renderRegistry();
+}
+
+// Map element types to category groups
+function regCategory(elType) {
+  var t = (elType || '').split('[')[0].toLowerCase();
+  if(t === 'button') return 'Buttons';
+  if(t === 'input' || t === 'textarea' || t === 'select') return 'Inputs';
+  if(t === 'form') return 'Forms';
+  if(t === 'a') return 'Links';
+  if(t === 'nav' || t === 'header' || t === 'footer' || t === 'aside' || t === 'main' || t === 'section') return 'Layout';
+  if(t === 'div' || t === 'span') return 'Containers';
+  return 'Other';
 }
 
 function renderRegistry() {
@@ -2182,6 +2476,7 @@ function renderRegistry() {
   // TABLE rows (desktop)
   tbody.innerHTML = items.map(function(r) {
     var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
+    var ver = (r.version || '').replace(/^v+/, ''); // strip any leading v's
     return '<tr>' +
       '<td><div class="reg-el-id">' + _esc(r.elId) + '</div></td>' +
       '<td><div class="reg-el-type">' + _esc(r.elType) + '</div></td>' +
@@ -2196,37 +2491,70 @@ function renderRegistry() {
       '<td class="reg-note-cell">' +
         '<textarea class="inline-note-input" placeholder="Add note…" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note || '') + '</textarea>' +
       '</td>' +
-      '<td style="color:var(--t3);font-size:10px">' + _esc(r.version || '—') + '</td>' +
+      '<td style="color:var(--t3);font-size:10px">v' + _esc(ver) + '</td>' +
       '<td style="color:var(--t3);font-size:10px">' + _esc(proj ? proj.name : '—') + '</td>' +
     '</tr>';
   }).join('');
 
-  // CARD rows (mobile)
-  cards.innerHTML = items.map(function(r) {
-    var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
-    return '<div class="reg-card ' + r.status + '">' +
-      '<div class="reg-card-top">' +
-        '<span class="reg-card-id">' + _esc(r.elId) + '</span>' +
-        '<span class="badge ' + r.status + '">' + r.status + '</span>' +
-      '</div>' +
-      '<div class="reg-card-meta">' +
-        '<span class="reg-card-type">' + _esc(r.elType) + '</span>' +
-        (r.label ? '<span class="reg-card-label">· ' + _esc(r.label) + '</span>' : '') +
-      '</div>' +
-      '<div class="reg-card-controls">' +
-        '<select class="status-select" style="flex:1;font-size:14px;height:34px" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
-          ['unchecked','ok','flagged','resolved'].map(function(s){
-            return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>';
-          }).join('') +
-        '</select>' +
-      '</div>' +
-      '<textarea class="inline-note-input" placeholder="Add note…" style="font-size:14px;min-height:50px" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note || '') + '</textarea>' +
-      '<div class="reg-card-footer">' +
-        '<span>v' + _esc(r.version || '?') + '</span>' +
-        '<span>' + _esc(proj ? proj.name : '—') + '</span>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+  // MOBILE CARDS — grouped by category
+  var groups = {};
+  var groupOrder = ['Buttons','Inputs','Forms','Links','Layout','Containers','Other'];
+  items.forEach(function(r) {
+    var cat = regCategory(r.elType);
+    if(!groups[cat]) groups[cat] = [];
+    groups[cat].push(r);
+  });
+
+  var cardHTML = '';
+  groupOrder.forEach(function(cat) {
+    if(!groups[cat] || !groups[cat].length) return;
+    var g = groups[cat];
+    // Count by status for group header
+    var gFlagged = g.filter(function(r){ return r.status === 'flagged'; }).length;
+    var gUnchecked = g.filter(function(r){ return r.status === 'unchecked'; }).length;
+    var gOk = g.filter(function(r){ return r.status === 'ok'; }).length;
+
+    cardHTML += '<div class="reg-group">' +
+      '<div class="reg-group-header">' +
+        '<span class="reg-group-title">' + cat + '</span>' +
+        '<div class="reg-group-counts">' +
+          '<span class="reg-count-chip unchecked">' + gUnchecked + ' unchecked</span>' +
+          (gFlagged ? '<span class="reg-count-chip flagged">' + gFlagged + ' flagged</span>' : '') +
+          (gOk ? '<span class="reg-count-chip ok">' + gOk + ' ok</span>' : '') +
+        '</div>' +
+      '</div>';
+
+    g.forEach(function(r) {
+      var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
+      var ver = (r.version || '').replace(/^v+/, '');
+      var label = (r.label || '').trim();
+      // Remove arrow artifact — lone ← or similar single chars
+      if(label.length <= 2 && /^[←→↑↓←\-\–\—]$/.test(label)) label = '';
+
+      cardHTML += '<div class="reg-card ' + r.status + '">' +
+        '<div class="reg-card-top">' +
+          '<span class="reg-card-id">' + _esc(r.elId) + '</span>' +
+          '<span class="badge ' + r.status + '">' + r.status + '</span>' +
+        '</div>' +
+        (label ? '<div class="reg-card-label-text">' + _esc(label) + '</div>' : '') +
+        '<div class="reg-card-inline-row">' +
+          '<select class="status-select reg-inline-select" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
+            ['unchecked','ok','flagged','resolved'].map(function(s){
+              return '<option value="' + s + '"' + (r.status === s ? ' selected' : '') + '>' + s + '</option>';
+            }).join('') +
+          '</select>' +
+          '<span class="reg-card-ver">v' + _esc(ver) + '</span>' +
+        '</div>' +
+        '<div class="reg-note-row">' +
+          '<input type="text" class="reg-note-inline" placeholder="Note…" value="' + _esc(r.note || '') + '" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' +
+        '</div>' +
+      '</div>';
+    });
+
+    cardHTML += '</div>'; // /reg-group
+  });
+
+  cards.innerHTML = cardHTML;
 }
 
 function setRegStatus(id, status) {
@@ -2355,44 +2683,62 @@ function loadApiKeyToInput() {
 async function triggerAiSummary() {
   var key = document.getElementById('api-key-input').value.trim() || localStorage.getItem('ak_api_key') || '';
   if(!key) { toast('Enter your Anthropic API key first'); return; }
+  if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
 
-  var flagged = AK.registry.filter(function(r){ return r.status === 'flagged' || r.status === 'unchecked'; });
-  var unresolvedLog = AK.log.filter(function(e){ return e.cat === 'bug' || e.cat === 'ui'; });
+  var diff = AK.lastDiff;
+  var projId = diff.projId || AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  var flaggedReg = AK.registry.filter(function(r){ return r.projectId == projId && r.status === 'flagged'; });
+  var openBugs = AK.log.filter(function(e){ return e.projectId == projId && (e.cat === 'bug' || e.cat === 'ui'); });
 
-  if(!flagged.length && !unresolvedLog.length && !AK.lastDiff) {
-    toast('Nothing flagged or unresolved to summarize');
-    return;
+  var prompt = 'You are a PWA code review assistant helping a developer compare two versions of a single-file PWA (index.html).\n\n';
+  prompt += '## Context\n';
+  prompt += 'Project: ' + (proj ? proj.name + ' ' + proj.version : 'Unknown') + '\n';
+  prompt += 'Workflow: Version A is the stable GitHub version. Version B is the Claude-session working version.\n\n';
+
+  prompt += '## Gap Analysis Results\n';
+  prompt += 'Total elements in B: ' + diff.elsB.length + '\n';
+  prompt += 'Added in B (new): ' + diff.added.length + '\n';
+  prompt += 'Removed from A (missing in B): ' + diff.removed.length + '\n';
+  prompt += 'Changed type: ' + diff.changed.length + '\n\n';
+
+  if(diff.unexpected && diff.unexpected.length) {
+    prompt += '## ⚠ IRREGULAR REMOVALS — Elements that were verified OK but are now missing\n';
+    prompt += 'These are the highest priority — they may be silent omissions:\n';
+    prompt += diff.unexpected.map(function(e){ return '- ' + e.key + ' [' + e.type + ']' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
   }
 
-  var prompt = 'You are a PWA developer assistant. Summarize the following audit findings and provide specific, actionable recommendations for each item.\n\n';
-
-  if(AK.lastDiff) {
-    prompt += '## Diff Results\n';
-    if(AK.lastDiff.removed.length) {
-      prompt += 'REMOVED elements (potential silent omissions):\n' +
-        AK.lastDiff.removed.map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
-    }
-    if(AK.lastDiff.changed.length) {
-      prompt += 'CHANGED elements:\n' +
-        AK.lastDiff.changed.map(function(c){ return '- ' + c.el.key + ': was ' + c.was.type + ', now ' + c.el.type; }).join('\n') + '\n\n';
-    }
+  if(diff.removed.length) {
+    prompt += '## All Removed Elements\n';
+    prompt += diff.removed.map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
+  }
+  if(diff.added.length) {
+    prompt += '## Added Elements\n';
+    prompt += diff.added.slice(0,30).map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
+  }
+  if(diff.changed.length) {
+    prompt += '## Changed Elements\n';
+    prompt += diff.changed.map(function(c){ return '- ' + c.el.key + ': was ' + c.was.type + ' → now ' + c.el.type; }).join('\n') + '\n\n';
+  }
+  if(flaggedReg.length) {
+    prompt += '## Registry Flagged Items\n';
+    prompt += flaggedReg.map(function(r){ return '- ' + r.elId + (r.note ? ': ' + r.note : ''); }).join('\n') + '\n\n';
+  }
+  if(openBugs.length) {
+    prompt += '## Open Bug/UI Log Entries\n';
+    prompt += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
   }
 
-  if(flagged.length) {
-    prompt += '## Flagged / Unchecked Registry Items\n' +
-      flagged.map(function(r){ return '- ' + r.elId + ' [' + r.status + ']' + (r.note ? ': ' + r.note : ''); }).join('\n') + '\n\n';
-  }
-
-  if(unresolvedLog.length) {
-    prompt += '## Open Bug / UI Log Entries\n' +
-      unresolvedLog.slice(0,20).map(function(e){ return '- [' + e.cat + '] ' + e.msg + (e.ref ? ' (ref: ' + e.ref + ')' : ''); }).join('\n') + '\n\n';
-  }
-
-  prompt += 'Provide: 1) A brief summary of the main concerns, 2) Prioritized action items, 3) Any patterns you notice.';
+  prompt += '## Instructions\n';
+  prompt += 'Provide:\n1. VERDICT: Are the changes expected (normal development) or do any look like unintended omissions?\n';
+  prompt += '2. IRREGULAR ITEMS: Call out anything that looks like a silent bug — missing functions, forms, nav elements, etc.\n';
+  prompt += '3. SAFE TO PROMOTE: Based on this diff, is Version B safe to push to GitHub as the new stable? If not, what must be fixed first?\n';
+  prompt += '4. ACTION LIST: Prioritized, specific items to address before promoting.\n';
+  prompt += 'Be direct and concise. Flag anything that looks like a regression.';
 
   var out = document.getElementById('ai-output');
   out.className = 'loading';
-  out.textContent = 'Analyzing…';
+  out.textContent = 'Analyzing gap report…';
 
   try {
     var resp = await fetch('https://api.anthropic.com/v1/messages', {
