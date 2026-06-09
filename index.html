@@ -2380,29 +2380,28 @@ function toggleGhPanel() {
 }
 
 function ghLoadSettings() {
-  var repo = localStorage.getItem('ak_gh_repo') || '';
-  var branch = localStorage.getItem('ak_gh_branch') || 'main';
-  var token = localStorage.getItem('ak_gh_token') || '';
+  // Always load per-project settings first, fall back to global
+  var projId = AK.activeProject;
+  var proj = projId ? AK.projects.find(function(x){ return x.id === projId; }) : null;
 
-  // Always normalize repo to short form (strip any full URL prefix)
+  // Per-project keys
+  var projRepoKey    = projId ? 'ak_gh_repo_'   + projId : null;
+  var projBranchKey  = projId ? 'ak_gh_branch_' + projId : null;
+
+  var repo   = (projRepoKey   && localStorage.getItem(projRepoKey))   || localStorage.getItem('ak_gh_repo')   || '';
+  var branch = (projBranchKey && localStorage.getItem(projBranchKey)) || localStorage.getItem('ak_gh_branch') || 'main';
+  var token  = localStorage.getItem('ak_gh_token') || '';
+
+  // If still no repo, derive from project's stored repo URL
+  if(!repo && proj && proj.repo) {
+    repo = ghNormalizeRepo(proj.repo);
+  }
+
   repo = ghNormalizeRepo(repo);
-  if(repo) localStorage.setItem('ak_gh_repo', repo);
 
   document.getElementById('gh-repo').value = repo;
   document.getElementById('gh-branch').value = branch;
   if(token) document.getElementById('gh-token').value = '••••••••';
-
-  // Pre-fill from active project repo URL if no repo saved yet
-  if(!repo && AK.activeProject) {
-    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
-    if(p && p.repo) {
-      var normalized = ghNormalizeRepo(p.repo);
-      if(normalized) {
-        document.getElementById('gh-repo').value = normalized;
-        localStorage.setItem('ak_gh_repo', normalized);
-      }
-    }
-  }
 }
 
 // Strip any URL prefix, return just "owner/repo"
@@ -2517,6 +2516,9 @@ function auditSelectProject() {
   var projId = parseInt(document.getElementById('audit-project-sel').value);
   if(!projId) return;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
+  // Reload GitHub fields for this project
+  AK.activeProject = projId;
+  ghLoadSettings();
   // Check if a baseline HTML is stored for this project
   var baselineKey = 'ak_baseline_html_' + projId;
   var baseline = localStorage.getItem(baselineKey);
@@ -2549,16 +2551,22 @@ function saveGhSettings() {
   var branch = document.getElementById('gh-branch').value.trim() || 'main';
   var token = document.getElementById('gh-token').value.trim();
 
-  document.getElementById('gh-repo').value = repo; // show normalized form
+  document.getElementById('gh-repo').value = repo;
+
+  // Save globally and per-project
   localStorage.setItem('ak_gh_repo', repo);
   localStorage.setItem('ak_gh_branch', branch);
+  if(AK.activeProject) {
+    localStorage.setItem('ak_gh_repo_'   + AK.activeProject, repo);
+    localStorage.setItem('ak_gh_branch_' + AK.activeProject, branch);
+  }
   if(token && !token.startsWith('•')) localStorage.setItem('ak_gh_token', token);
   toast('GitHub settings saved');
 
-  // Backfill active project repo if not set
+  // Backfill active project repo URL if not set
   if(AK.activeProject && repo) {
     var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
-    if(p && !p.repo) { p.repo = 'https://github.com/' + repo; AK.save(); }
+    if(p) { p.repo = 'https://github.com/' + repo; AK.save(); }
   }
 }
 
@@ -2868,6 +2876,20 @@ function runAudit() {
 
 // syncRegistry and showBaselineOptions — kept below with full implementations
 
+// Map raw HTML tag/type from parseHTML to registry TYPE_META keys
+function normElType(type, tag) {
+  var t = (type || '').toLowerCase();
+  var tg = (tag || '').toLowerCase();
+  if(tg === 'button' || t === 'button' || t.startsWith('input[button') || t.startsWith('input[submit')) return 'BUTTON';
+  if(tg === 'input' || tg === 'textarea' || tg === 'select' || t.startsWith('input[')) return 'INPUT';
+  if(tg === 'a') return 'NAV';
+  if(tg === 'nav' || tg === 'header' || tg === 'footer') return 'NAV';
+  if(tg === 'form') return 'CARD';
+  if(tg === 'section' || tg === 'main' || tg === 'aside') return 'CARD';
+  // div/span with id — try to guess from id name
+  return 'OTHER';
+}
+
 function syncRegistry() {
   if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
   var projId = AK.lastDiff.projId || parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
@@ -2878,7 +2900,7 @@ function syncRegistry() {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(!exists) {
       AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
+        screen: 'global', name: e.label || e.key, elType: normElType(e.type, e.tag), elId: e.key, fn: '',
         note: 'Added in ' + version, status: 'changed', version: version, ts: new Date().toISOString() });
       added++;
     }
@@ -2941,7 +2963,7 @@ function applyBaseline(projId) {
     var exists = AK.registry.find(function(r){ return r.projectId == projId && r.elId === e.key; });
     if(!exists) {
       AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
+        screen: 'global', name: e.label || e.key, elType: normElType(e.type, e.tag), elId: e.key, fn: '',
         note: 'Auto-scanned', status: 'ok', version: version, ts: new Date().toISOString() });
       added++;
     }
@@ -3329,8 +3351,8 @@ function renderRegObjects(screenId, projId) {
       (REG_FILTER === 'all' || r.status === REG_FILTER);
   });
 
-  // Build type filter chips from available types in this screen
-  var allForScreen = AK.registry.filter(function(r){ return r.screen === screenId; });
+  // Build type filter chips from available types in this screen (scoped to project)
+  var allForScreen = AK.registry.filter(function(r){ return r.screen === screenId && (!projId || r.projectId == projId); });
   var types = {};
   allForScreen.forEach(function(r){ types[r.elType] = (types[r.elType]||0)+1; });
 
@@ -4244,11 +4266,13 @@ function dkToggleInspect() {
   if(DK.inspecting) {
     panel.classList.remove('open');
     ov.style.display = 'block';
+    ov.style.pointerEvents = 'auto'; // must capture taps
     bn.style.display = 'block';
     ov.addEventListener('touchend', dkInspectTap);
     ov.addEventListener('click', dkInspectTap);
   } else {
     ov.style.display = 'none';
+    ov.style.pointerEvents = 'none';
     bn.style.display = 'none';
     ov.removeEventListener('touchend', dkInspectTap);
     ov.removeEventListener('click', dkInspectTap);
@@ -4258,7 +4282,9 @@ function dkToggleInspect() {
 function dkInspectTap(e) {
   e.preventDefault();
   var x, y;
-  if(e.touches && e.touches[0]) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+  // touchend: use changedTouches (touches is empty on end)
+  if(e.changedTouches && e.changedTouches[0]) { x = e.changedTouches[0].clientX; y = e.changedTouches[0].clientY; }
+  else if(e.touches && e.touches[0]) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
   else { x = e.clientX; y = e.clientY; }
 
   var ov = document.getElementById('dk-inspect-overlay');
