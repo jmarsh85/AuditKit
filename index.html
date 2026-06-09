@@ -120,13 +120,14 @@
   }
 
   #active-project-name {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--teal);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--t1);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 140px;
+    letter-spacing: 0.01em;
   }
 
   #header-actions {
@@ -1565,7 +1566,7 @@
     #app-title { font-size: 15px; }
     #ak-version-header { display: none; }
     #active-project-label { display: none; }
-    #active-project-name { font-size: 10px; max-width: 100px; }
+    #active-project-name { font-size: 12px; max-width: 100px; }
     #header-actions { display: none; }
     #header-actions-mobile { display: flex; }
 
@@ -1652,7 +1653,7 @@
     .screen { min-height: calc(100vh - 82px); padding: 8px; gap: 8px; }
     #header { height: 44px; padding: 0 10px; gap: 6px; }
     #app-title { font-size: 14px; }
-    #active-project-name { max-width: 70px; font-size: 9px; }
+    #active-project-name { max-width: 70px; font-size: 11px; }
     .hdr-icon-btn { width: 30px; height: 30px; font-size: 14px; }
     #nav { height: 40px; padding: 0 4px; gap: 2px; }
     .nav-tab { font-size: 9px; height: 30px; }
@@ -2147,7 +2148,7 @@ function showScreen(name) {
   var screens = { projects: 0, audit: 1, registry: 2, log: 3 };
   document.getElementById('screen-' + name).classList.add('active');
   document.querySelectorAll('.nav-tab')[screens[name]].classList.add('active');
-  if(name === 'registry') renderRegistry();
+  if(name === 'registry') { populateAllProjectSelects(); renderRegistry(); }
   if(name === 'log') renderLogEntries();
   if(name === 'projects') renderProjects();
   if(name === 'audit') { populateAuditSelects(); initAiPanel(); }
@@ -2331,6 +2332,7 @@ function populateAllProjectSelects() {
   var opts3 = '<option value="">All projects…</option>' +
     AK.projects.map(function(p){ return '<option value="' + p.id + '">' + _esc(p.name) + '</option>'; }).join('');
   document.getElementById('reg-project-sel').innerHTML = opts3;
+  if(AK.activeProject) document.getElementById('reg-project-sel').value = AK.activeProject;
 }
 
 function populateAuditSelects() {
@@ -3228,6 +3230,8 @@ function toggleRegView() {
 }
 
 function regSelectProject() {
+  var projId = parseInt(document.getElementById('reg-project-sel').value) || null;
+  if(projId) { AK.activeProject = projId; updateActiveProjectHeader(); }
   REG_SELECTED_SCREEN = null;
   document.getElementById('reg-object-panel').style.display = 'none';
   document.getElementById('reg-screen-grid').style.display = '';
@@ -3640,38 +3644,14 @@ function confirmClearRegistry() {
   if(!proj) { toast('Project not found'); return; }
   var count = AK.registry.filter(function(r){ return r.projectId == projId; }).length;
   if(!count) { toast('No registry entries for this project'); return; }
-
-  openModal(
-    '⚠ Clear Registry — ' + _esc(proj.name),
-    '<div style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:10px">This will permanently delete all ' + count + ' registry entries for <em>' + _esc(proj.name) + '</em>. This cannot be undone.</div>' +
-    '<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Use this when you need a clean slate — for example after fixing element type mappings. Export the registry first if you want a backup.</div>' +
-    '<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Type the project name to confirm:</div>' +
-    '<input id="clear-registry-confirm-input" type="text" placeholder="' + _esc(proj.name) + '" style="width:100%;box-sizing:border-box;font-size:14px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--t1)" autocomplete="off">',
-    '<button class="btn red" onclick="executeClearRegistry(' + proj.id + ')">Delete All Entries</button>' +
-    '<button class="btn" onclick="closeModal()">Cancel</button>'
-  );
-  // Focus the input after modal opens
-  setTimeout(function(){ var el = document.getElementById('clear-registry-confirm-input'); if(el) el.focus(); }, 150);
-}
-
-function executeClearRegistry(projId) {
-  var proj = AK.projects.find(function(p){ return p.id == projId; });
-  var projName = proj ? proj.name : '';
-  var input = document.getElementById('clear-registry-confirm-input');
-  if(!input || input.value.trim() !== projName) {
-    if(input) input.style.borderColor = 'var(--red)';
-    toast('Type the project name exactly to confirm');
-    return;
-  }
-  var before = AK.registry.filter(function(r){ return r.projectId == projId; }).length;
+  if(!confirm('Delete all ' + count + ' registry entries for "' + proj.name + '"? This cannot be undone.')) return;
   AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
   AK.save();
-  closeModal();
   REG_SELECTED_SCREEN = null;
   document.getElementById('reg-object-panel').style.display = 'none';
   document.getElementById('reg-screen-grid').style.display = '';
   renderRegistryScreens();
-  toast('Registry cleared — ' + before + ' entries deleted');
+  toast('Registry cleared — ' + count + ' entries deleted');
 }
 
 // ── AI Naming Pass
