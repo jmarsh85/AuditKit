@@ -1884,6 +1884,7 @@
             <span class="ai-key-label">API Key:</span>
             <input type="password" id="api-key-input" placeholder="sk-ant-…" style="flex:1;height:26px;font-size:10px" oninput="saveApiKey(this.value)">
             <button class="btn sm" onclick="loadApiKeyToInput()">Load</button>
+            <button class="btn sm" style="background:var(--teal);color:#000" onclick="testApiKey()" title="Ping API to confirm key + connectivity">Test</button>
           </div>
         </div>
       </div>
@@ -2439,22 +2440,47 @@ function xhrGet(url, headers) {
   });
 }
 
-// XHR POST for Anthropic API — returns parsed JSON directly
-function xhrPost(url, body, extraHeaders) {
-  return new Promise(function(resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    Object.keys(extraHeaders || {}).forEach(function(k){ xhr.setRequestHeader(k, extraHeaders[k]); });
-    xhr.onload = function() {
-      try { resolve(JSON.parse(xhr.responseText)); }
-      catch(e) { reject(new Error('JSON parse error: ' + xhr.responseText.slice(0,100))); }
-    };
-    xhr.onerror = function(){ reject(new Error('Network error — are you in Safari?')); };
-    xhr.ontimeout = function(){ reject(new Error('Request timed out')); };
-    xhr.timeout = 30000;
-    xhr.send(body);
-  });
+// POST for Anthropic API — uses fetch with CORS mode, falls back to XHR
+async function xhrPost(url, body, extraHeaders) {
+  // Try fetch first (better CORS handling in modern Safari/Chrome)
+  try {
+    var controller = new AbortController();
+    var timer = setTimeout(function(){ controller.abort(); }, 30000);
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, extraHeaders),
+      body: body,
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    var text = await resp.text();
+    try { return JSON.parse(text); }
+    catch(e) { throw new Error('JSON parse error: ' + text.slice(0,120)); }
+  } catch(fetchErr) {
+    // If fetch fails with a network/CORS error, fall back to XHR
+    if(fetchErr.name === 'AbortError') throw new Error('Request timed out after 30s');
+    // XHR fallback
+    return new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      Object.keys(extraHeaders || {}).forEach(function(k){ xhr.setRequestHeader(k, extraHeaders[k]); });
+      xhr.onload = function() {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch(e) { reject(new Error('JSON parse error: ' + xhr.responseText.slice(0,120))); }
+      };
+      xhr.onerror = function(){
+        reject(new Error(
+          'Network blocked. Verify: (1) API key is correct, (2) you are on HTTPS, ' +
+          '(3) not using an ad blocker or VPN that blocks api.anthropic.com. ' +
+          'Fetch error was: ' + fetchErr.message
+        ));
+      };
+      xhr.ontimeout = function(){ reject(new Error('Request timed out')); };
+      xhr.timeout = 30000;
+      xhr.send(body);
+    });
+  }
 }
 
 // ── Export gap analysis diff as structured JSON/text
@@ -3841,6 +3867,28 @@ function loadApiKeyToInput() {
   var k = localStorage.getItem('ak_api_key') || '';
   document.getElementById('api-key-input').value = k;
   toast(k ? 'Key loaded' : 'No key saved');
+}
+
+async function testApiKey() {
+  var key = (document.getElementById("api-key-input")||{}).value || localStorage.getItem("ak_api_key") || "";
+  if(!key) { toast("Enter an API key first"); return; }
+  var out = document.getElementById("ai-output");
+  out.textContent = "Testing API connection…";
+  out.className = "loading";
+  try {
+    var body = JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:10, messages:[{role:"user",content:"ping"}] });
+    var data = await xhrPost("https://api.anthropic.com/v1/messages", body, { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
+    if(data.error) {
+      out.textContent = "❌ API error: " + (data.error.message || JSON.stringify(data.error));
+    } else {
+      out.textContent = "✅ API connection working! Key is valid.";
+      saveApiKey(key);
+    }
+    out.className = "";
+  } catch(e) {
+    out.textContent = "❌ " + e.message;
+    out.className = "";
+  }
 }
 
 // ── Build the structured Claude prompt from current diff + registry state
