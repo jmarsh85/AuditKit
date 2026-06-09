@@ -1285,6 +1285,243 @@
   }
   .reg-note-inline:focus { border-color: var(--teal-border); color: var(--t1); }
 
+  /* ════════════════════════════════════════════
+     REGISTRY — SCREEN-FIRST VIEW
+  ════════════════════════════════════════════ */
+
+  /* Screen tile grid */
+  .reg-screen-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .reg-screen-tile {
+    background: var(--bg2);
+    border: 1px solid var(--border1);
+    border-radius: 10px;
+    padding: 14px 12px;
+    cursor: pointer;
+    transition: all var(--trans);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .reg-screen-tile:hover { border-color: var(--border3); transform: translateY(-1px); }
+  .reg-screen-tile:active { transform: translateY(0); }
+  .reg-screen-tile.has-issues { border-color: rgba(255,77,94,0.3); }
+  .reg-screen-tile.has-changes { border-color: rgba(245,166,35,0.25); }
+
+  .reg-screen-tile-accent {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 10px 10px 0 0;
+  }
+  .reg-screen-tile.has-issues .reg-screen-tile-accent { background: var(--red); }
+  .reg-screen-tile.has-changes .reg-screen-tile-accent { background: var(--amber); }
+  .reg-screen-tile.all-ok .reg-screen-tile-accent { background: var(--green); }
+
+  .reg-screen-tile-icon { font-size: 20px; margin-bottom: 2px; }
+
+  .reg-screen-tile-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--t1);
+    line-height: 1.2;
+  }
+
+  .reg-screen-tile-sub {
+    font-size: 10px;
+    color: var(--t3);
+  }
+
+  .reg-screen-tile-counts {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+  }
+
+  /* Modals tile — full width */
+  .reg-screen-tile.full-width {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .reg-screen-tile.full-width .reg-screen-tile-counts { margin-top: 0; }
+
+  /* Object list panel */
+  #reg-object-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Type filter row within object panel */
+  #reg-type-filters .filter-chip {
+    font-size: 9px;
+    height: 22px;
+    padding: 0 8px;
+  }
+
+  /* Object rows */
+  .reg-obj-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border1);
+    cursor: pointer;
+    transition: background var(--trans);
+    border-left: 3px solid transparent;
+  }
+  .reg-obj-row:last-child { border-bottom: none; }
+  .reg-obj-row:hover { background: rgba(255,255,255,0.025); }
+  .reg-obj-row.ok { border-left-color: var(--green); }
+  .reg-obj-row.changed { border-left-color: var(--amber); }
+  .reg-obj-row.missing { border-left-color: var(--red); }
+  .reg-obj-row.issue { border-left-color: var(--purple); }
+  .reg-obj-row.resolved { border-left-color: var(--blue); opacity: 0.55; }
+
+  .reg-obj-type-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    width: 22px;
+    text-align: center;
+  }
+
+  .reg-obj-info { flex: 1; min-width: 0; }
+
+  .reg-obj-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .reg-obj-meta {
+    font-size: 10px;
+    color: var(--t3);
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .reg-obj-id { color: var(--teal); font-size: 10px; }
+  .reg-obj-fn { color: var(--t3); }
+
+  .reg-obj-chevron { color: var(--t3); font-size: 11px; flex-shrink: 0; }
+
+  /* Object detail drawer (inline) */
+  .reg-obj-drawer {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 14px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border2);
+    border-left: 3px solid var(--border2);
+  }
+  .reg-obj-drawer.open { display: flex; }
+  .reg-obj-drawer.ok { border-left-color: var(--green); }
+  .reg-obj-drawer.changed { border-left-color: var(--amber); }
+  .reg-obj-drawer.missing { border-left-color: var(--red); }
+  .reg-obj-drawer.issue { border-left-color: var(--purple); }
+
+  .reg-obj-drawer-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--t1);
+  }
+
+  .reg-obj-drawer-desc {
+    font-size: 11px;
+    color: var(--t2);
+    line-height: 1.6;
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    border-left: 2px solid var(--border3);
+  }
+
+  .reg-obj-drawer-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .reg-obj-drawer-meta-item {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+  }
+  .reg-obj-drawer-meta-label { font-size: 9px; color: var(--t3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+  .reg-obj-drawer-meta-val { font-size: 11px; color: var(--t2); word-break: break-all; }
+  .reg-obj-drawer-meta-val.mono { font-family: 'JetBrains Mono', monospace; color: var(--teal); }
+
+  /* Status button grid in drawer */
+  .reg-status-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+  }
+
+  @media (max-width: 480px) {
+    .reg-status-grid { grid-template-columns: 1fr 1fr; }
+    .reg-screen-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* Name edit field */
+  .reg-name-edit {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--t1);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color var(--trans);
+  }
+  .reg-name-edit:focus { border-color: var(--teal-border); }
+
+  /* Type badge pill */
+  .type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 9px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid var(--border2);
+    color: var(--t3);
+    background: var(--bg4);
+    white-space: nowrap;
+  }
+  .type-pill.BUTTON { border-color: rgba(77,159,255,0.3); color: var(--blue); background: var(--blue-dim); }
+  .type-pill.INPUT  { border-color: rgba(245,166,35,0.3); color: var(--amber); background: var(--amber-dim); }
+  .type-pill.CARD   { border-color: rgba(0,229,204,0.3); color: var(--teal); background: var(--teal-dim); }
+  .type-pill.MODAL  { border-color: rgba(162,89,255,0.3); color: var(--purple); background: var(--purple-dim); }
+  .type-pill.NAV    { border-color: rgba(45,214,123,0.3); color: var(--green); background: var(--green-dim); }
+  .type-pill.CHIP   { border-color: rgba(255,215,0,0.3); color: #ffd700; background: rgba(255,215,0,0.08); }
+  .type-pill.TILE   { border-color: rgba(255,77,94,0.25); color: var(--red); background: var(--red-dim); }
+  .type-pill.OTHER  { border-color: var(--border2); color: var(--t3); }
+
   /* ── LOG SUBMIT ROW ── */
   .log-submit-row {
     display: flex;
@@ -1633,23 +1870,28 @@
 
     <!-- ── REGISTRY SCREEN ── -->
     <div id="screen-registry" class="screen">
+
+      <!-- TOOLBAR -->
       <div class="card">
-        <div class="card-header">
-          <span class="card-title">Element Registry</span>
-        </div>
-        <div class="audit-toolbar">
-          <div class="audit-toolbar-row">
-            <select id="reg-project-sel" class="audit-project-select" onchange="renderRegistry()">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <span class="card-title">Element Map</span>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <select id="reg-project-sel" class="audit-project-select" style="height:30px;font-size:12px;width:140px" onchange="regSelectProject()">
               <option value="">All projects…</option>
             </select>
-            <button class="btn teal sm" onclick="doExportRegistry()" style="flex-shrink:0">⬆ Export</button>
-          </div>
-          <div class="audit-toolbar-row">
-            <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
-            <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
+            <button class="btn teal sm" onclick="doExportRegistry()">⬆ Export</button>
           </div>
         </div>
-        <div class="card-body" style="padding-bottom:8px">
+        <div class="audit-toolbar">
+          <div class="audit-toolbar-row" style="flex-wrap:wrap;gap:6px">
+            <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
+            <button class="btn sm purple" onclick="triggerAiNamingPass()" style="flex-shrink:0">✦ AI Name Pass</button>
+            <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
+            <button class="btn sm" onclick="toggleRegView()" id="reg-view-btn" style="flex-shrink:0">☰ List View</button>
+          </div>
+        </div>
+        <!-- Status filter chips -->
+        <div style="padding:8px 12px 10px">
           <div class="scroll-chip-row" id="reg-filters">
             <button class="filter-chip active" onclick="setRegFilter('all',this)">All</button>
             <button class="filter-chip" onclick="setRegFilter('ok',this)">✓ Working</button>
@@ -1659,25 +1901,46 @@
             <button class="filter-chip" onclick="setRegFilter('resolved',this)">✓ Fixed</button>
           </div>
         </div>
-        <div id="registry-table-wrap" style="overflow-x:auto">
-          <table id="registry-table">
-            <thead>
-              <tr>
-                <th>Element</th>
-                <th>Type</th>
-                <th>Label / Text</th>
-                <th>Status</th>
-                <th>Note</th>
-                <th>Version</th>
-                <th>Project</th>
-              </tr>
-            </thead>
-            <tbody id="registry-tbody"></tbody>
-          </table>
-        </div>
-        <!-- Mobile card view (hidden on desktop, shown on mobile via JS/CSS) -->
-        <div id="registry-cards" class="registry-card-list"></div>
       </div>
+
+      <!-- SCREEN-FIRST VIEW (default) -->
+      <div id="reg-screen-view">
+        <!-- Screen tiles grid -->
+        <div id="reg-screen-grid" class="reg-screen-grid"></div>
+        <!-- Object list for selected screen -->
+        <div id="reg-object-panel" class="card" style="display:none">
+          <div class="card-header">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <button class="btn sm" onclick="regBackToScreens()" style="flex-shrink:0">← Screens</button>
+              <span id="reg-object-panel-title" class="card-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+            </div>
+            <button class="btn teal sm" onclick="regAddObject()" style="flex-shrink:0">+ Add</button>
+          </div>
+          <!-- Object type filter chips -->
+          <div style="padding:8px 12px">
+            <div class="scroll-chip-row" id="reg-type-filters"></div>
+          </div>
+          <!-- Object list -->
+          <div id="reg-object-list"></div>
+        </div>
+      </div>
+
+      <!-- LIST VIEW (alternative) -->
+      <div id="reg-list-view" style="display:none">
+        <div class="card">
+          <div id="registry-table-wrap" style="overflow-x:auto">
+            <table id="registry-table">
+              <thead><tr>
+                <th>Object Name</th><th>Screen</th><th>Type</th>
+                <th>Status</th><th>Note</th><th>Ver</th>
+              </tr></thead>
+              <tbody id="registry-tbody"></tbody>
+            </table>
+          </div>
+          <div id="registry-cards" class="registry-card-list"></div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ── LOG SCREEN ── -->
@@ -2439,29 +2702,23 @@ function runAudit() {
   toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' differences, ' + unexpected.length + ' irregular');
 }
 
-// Smart registry sync: add new, flag removed, carry forward OK items
+// syncRegistry and showBaselineOptions — kept below with full implementations
+
 function syncRegistry() {
   if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
   var projId = AK.lastDiff.projId || parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   var version = proj ? proj.version : 'unknown';
   var added = 0, flagged = 0;
-
-  // Add new elements from Version B — mark as 'changed' (needs a look)
   AK.lastDiff.elsB.forEach(function(e) {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(!exists) {
-      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
-        elType: e.type, label: e.label, status: 'changed', note: 'Added in ' + version, version: version, ts: new Date().toISOString() });
+      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
+        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
+        note: 'Added in ' + version, status: 'changed', version: version, ts: new Date().toISOString() });
       added++;
-    } else {
-      if(e.label && e.label !== exists.label) exists.label = e.label;
-      // If was OK and element type changed, mark as changed
-      if(exists.status === 'ok') { /* keep ok — type changes tracked in diff */ }
     }
   });
-
-  // Elements in registry but not in Version B — mark as 'missing'
   AK.lastDiff.removed.forEach(function(e) {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(exists && exists.status !== 'missing') {
@@ -2470,42 +2727,40 @@ function syncRegistry() {
       flagged++;
     }
   });
-
   AK.save();
   showScreen('registry');
   toast('Registry synced — ' + added + ' added, ' + flagged + ' flagged');
 }
 
-// Baseline: scan a single HTML file and set as project registry from scratch
 function showBaselineOptions() {
   var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id == projId; });
   if(!proj) { toast('Select a project first'); return; }
   openModal(
-    'Set Baseline for: ' + proj.name,
-    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:8px">' +
-      'This scans a single HTML file and rebuilds the element registry for this project from scratch. ' +
-      'Existing entries will be <strong style="color:var(--amber)">replaced</strong>. ' +
-      'Use the GitHub-stable or last-known-good version.' +
+    'Set Baseline — ' + proj.name,
+    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
+      'Scan an HTML file to auto-discover elements and add them to the map. ' +
+      'Existing named objects are kept; new raw elements are added as <em>Updated</em>.' +
     '</div>' +
     '<div class="col">' +
       '<div class="sec-label">Load HTML File</div>' +
       '<input type="file" id="baseline-file-input" accept=".html,.htm" style="display:block;color:var(--t2);font-size:12px">' +
     '</div>' +
     '<div class="or-divider" style="margin:8px 0">or paste</div>' +
-    '<textarea id="baseline-paste" placeholder="Paste HTML source…" style="min-height:80px;font-size:13px"></textarea>',
-    '<button class="btn teal" onclick="applyBaseline(' + proj.id + ')">⊙ Set as Baseline</button>' +
+    '<textarea id="baseline-paste" placeholder="Paste HTML source…" style="min-height:80px;font-size:13px"></textarea>' +
+    '<div style="margin-top:8px;padding:8px;background:var(--teal-dim);border:1px solid var(--teal-border);border-radius:6px;font-size:11px;color:var(--teal)">' +
+      '🎳 Using BowlingDB? Tap <strong>Load BowlingDB Template</strong> for a fully hand-named map instead.' +
+    '</div>',
+    '<button class="btn teal" onclick="applyBaseline(' + proj.id + ')">⊙ Scan & Add</button>' +
+    '<button class="btn amber" onclick="closeModal();showBowlingDBSeedOption()">🎳 BowlingDB Template</button>' +
     '<button class="btn" onclick="closeModal()">Cancel</button>'
   );
-
-  // Wire up file input inside modal
   setTimeout(function() {
     var fi = document.getElementById('baseline-file-input');
     if(fi) fi.onchange = function() {
-      var f = fi.files[0];
-      if(!f) return;
+      var f = fi.files[0]; if(!f) return;
       var r = new FileReader();
-      r.onload = function(e) { document.getElementById('baseline-paste').value = e.target.result; toast('File loaded — tap Set as Baseline'); };
+      r.onload = function(e) { document.getElementById('baseline-paste').value = e.target.result; toast('File loaded'); };
       r.readAsText(f);
     };
   }, 100);
@@ -2517,101 +2772,722 @@ function applyBaseline(projId) {
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   var version = proj ? proj.version : 'baseline';
   var els = parseHTML(src);
-
-  // Remove existing registry for this project and rebuild
-  AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
+  var added = 0;
   els.forEach(function(e) {
-    AK.registry.push({ id: Date.now() + Math.random(), projectId: projId, elId: e.key,
-      elType: e.type, label: e.label, status: 'ok', note: '',
-      version: version, ts: new Date().toISOString() });
+    var exists = AK.registry.find(function(r){ return r.projectId == projId && r.elId === e.key; });
+    if(!exists) {
+      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
+        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
+        note: 'Auto-scanned', status: 'ok', version: version, ts: new Date().toISOString() });
+      added++;
+    }
   });
-
-  AK.save();
-  closeModal();
-  renderRegistry();
-  toast('Baseline set — ' + els.length + ' elements mapped for ' + (proj ? proj.name : 'project'));
+  AK.save(); closeModal(); renderRegistryScreens();
+  toast('Added ' + added + ' elements for ' + (proj ? proj.name : 'project'));
 }
 
 // ════════════════════════════════════════════════════════════════
-//  REGISTRY
+//  REGISTRY — SCREEN-FIRST ARCHITECTURE
 // ════════════════════════════════════════════════════════════════
+
+// Element type icons and metadata
+var TYPE_META = {
+  BUTTON: { icon: '⬡', label: 'Button',  desc: 'Tappable action button' },
+  INPUT:  { icon: '✏', label: 'Input',   desc: 'Text field, dropdown, or form input' },
+  CARD:   { icon: '▤',  label: 'Card',    desc: 'Content card or display panel' },
+  MODAL:  { icon: '◫',  label: 'Modal',   desc: 'Overlay dialog or bottom sheet' },
+  NAV:    { icon: '↔',  label: 'Nav',     desc: 'Navigation control or route link' },
+  CHIP:   { icon: '⬭',  label: 'Chip',    desc: 'Filter chip or selector' },
+  TILE:   { icon: '⊞',  label: 'Tile',    desc: 'Home screen tile or grid item' },
+  OTHER:  { icon: '◻',  label: 'Other',   desc: 'Miscellaneous element' }
+};
+
+// Screen definitions with emoji, friendly name, description
+var SCREEN_META = {
+  'global':             { icon: '🌐', name: 'Global / Header',    desc: 'Header bar, back button, settings — visible on all screens' },
+  's-home':             { icon: '🏠', name: 'Home',               desc: 'Main dashboard with quick stats and nav tiles' },
+  's-scoring':          { icon: '🎯', name: 'Scoring',            desc: 'Live frame scoring — pin diagram, quick actions, confirm' },
+  's-game-complete':    { icon: '✅', name: 'Game Complete',       desc: 'Post-game summary with stats and next game flow' },
+  's-series':           { icon: '📋', name: 'Series',             desc: 'Series list view — start new or review past series' },
+  's-leagues':          { icon: '🎳', name: 'Leagues',            desc: 'League management — add, edit, archive leagues' },
+  's-tb-sessions':      { icon: '👥', name: 'Team Bowl',          desc: 'Team bowling sessions list' },
+  's-group':            { icon: '👥', name: 'Group Scoring',       desc: 'Active team session with shared scorecard' },
+  's-balls':            { icon: '🔵', name: 'Balls',              desc: 'Ball bag — view, add, and edit bowling balls' },
+  's-ball-detail':      { icon: '🔵', name: 'Ball Detail',        desc: 'Individual ball detail with surface prep log' },
+  's-stats':            { icon: '📊', name: 'Statistics',         desc: 'Performance stats — averages, highs, spare rates' },
+  's-games':            { icon: '📝', name: 'Games / Shell',      desc: 'App shell elements: modals, DevKit, bottom nav, toast' },
+  's-open':             { icon: '🎳', name: 'Open Bowling',       desc: 'Casual open bowling session — not tied to a league' },
+  's-notap':            { icon: '⭕', name: 'NoTap',              desc: 'NoTap scoring mode sessions' },
+  's-tournaments':      { icon: '🏆', name: 'Tournaments',        desc: 'Tournament list and management' },
+  's-tournament-series':{ icon: '🏆', name: 'Tournament Series',  desc: 'Series within a tournament' },
+  's-handicap-league':  { icon: '📐', name: 'Handicap (League)',  desc: 'Handicap calculation settings for leagues' },
+  's-handicap-tb':      { icon: '📐', name: 'Handicap (Team)',    desc: 'Handicap settings for team bowl sessions' },
+  's-game-select':      { icon: '🎮', name: 'Game Select',        desc: 'Game selection screen before scoring' },
+  's-games-list':       { icon: '📄', name: 'Games List',         desc: 'List of all recorded games' },
+  'Modals':             { icon: '💬', name: 'Modals',             desc: 'All overlay dialogs and bottom sheets across the app' }
+};
+
+// Status info (plain English)
+var STATUS_INFO = {
+  ok:       { label: 'Working',  icon: '✓', desc: 'Confirmed present and functioning correctly', color: 'var(--green)' },
+  changed:  { label: 'Updated',  icon: '~', desc: 'Appeared or was modified in a recent diff — needs a look', color: 'var(--amber)' },
+  missing:  { label: 'Missing',  icon: '!', desc: 'Was working before but is no longer found in the latest version', color: 'var(--red)' },
+  issue:    { label: 'Issue',    icon: '⚠', desc: 'Manually flagged — something needs attention', color: 'var(--purple)' },
+  resolved: { label: 'Fixed',    icon: '✓', desc: 'Was missing or had an issue, now confirmed resolved', color: 'var(--blue)' }
+};
+
+// State
 var REG_FILTER = 'all';
+var REG_SELECTED_SCREEN = null;
+var REG_TYPE_FILTER = 'all';
+var REG_VIEW = 'screen'; // 'screen' | 'list'
+var REG_OPEN_DRAWER = null;
+
+// ── BowlingDB Pre-seeded Template
+var BOWLINGDB_TEMPLATE = {
+  projectName: 'BowlingDB',
+  screens: [
+    { id: 'global', objects: [
+      { name: 'Back button', type: 'BUTTON', elId: '#hdr-back', fn: 'navBack', note: 'Returns to previous screen' },
+      { name: 'App title (DevKit tap)', type: 'BUTTON', elId: '#hdr-title', fn: 'dkHeaderTap', note: 'Triple-tap activates DevKit' },
+      { name: 'Delete game button', type: 'BUTTON', elId: '#hdr-delete-game-btn', fn: 'confirmDeleteGame', note: 'Header action — only visible during active game' },
+      { name: 'Export/sync button', type: 'BUTTON', elId: '#hdr-sync-btn', fn: 'openExportModal', note: 'Opens import/export modal' },
+      { name: 'Settings button', type: 'BUTTON', elId: '', fn: 'openSettingsModal', note: 'Opens settings modal' }
+    ]},
+    { id: 's-home', objects: [
+      { name: 'Version text (triple-tap)', type: 'BUTTON', elId: '#home-version', fn: 'handleVersionTap', note: 'Displays version; triple-tap activates DevKit' },
+      { name: 'Average stat card', type: 'CARD', elId: '#qs-avg-card', fn: 'goToAvgGames', note: 'Shows 10-week rolling average; taps to game list' },
+      { name: 'High series card', type: 'CARD', elId: '#qs-series-card', fn: 'goToHighSeries', note: 'Shows all-time high series' },
+      { name: 'High game card', type: 'CARD', elId: '#qs-high-card', fn: 'goToHighGameHome', note: 'Shows all-time high game' },
+      { name: 'Nav tile grid', type: 'TILE', elId: '#nav-grid', fn: '', note: 'Drag-to-reorder grid of module tiles' },
+      { name: 'League tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-leagues' },
+      { name: 'Team Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tb-sessions' },
+      { name: 'Open Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-open' },
+      { name: 'Balls tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-balls' },
+      { name: 'Stats tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-stats' },
+      { name: 'NoTap tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-notap' },
+      { name: 'Tournament tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tournaments' },
+      { name: 'Pin color legend (theme)', type: 'BUTTON', elId: '', fn: 'openThemeModal', note: 'Opens theme/pin color customization' },
+      { name: 'Bottom nav — Home', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Leagues', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Stats', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Balls', type: 'NAV', elId: '', fn: 'navTo', note: '' }
+    ]},
+    { id: 's-scoring', objects: [
+      { name: 'Ball chip selector', type: 'CHIP', elId: '#ball-bar-chips', fn: '', note: 'Selects which ball to log for this frame' },
+      { name: 'Previous attempt nav', type: 'NAV', elId: '#nav-prev', fn: 'navPrevAttempt', note: '' },
+      { name: 'Next attempt nav', type: 'NAV', elId: '#nav-next', fn: 'navNextAttempt', note: '' },
+      { name: 'Attempt notes button', type: 'BUTTON', elId: '#notes-icon-btn', fn: 'openAttemptNotesModal', note: 'Logs notes for this specific frame/attempt' },
+      { name: 'Clear attempt button', type: 'BUTTON', elId: '#clear-att-btn', fn: 'clearCurrentAttempt', note: 'Resets current frame input' },
+      { name: 'Pin diagram', type: 'BUTTON', elId: '#pb1…#pb10', fn: 'togglePin', note: '10 individual pin buttons (pb1–pb10)' },
+      { name: 'Board # input (first ball)', type: 'INPUT', elId: '#board-sb', fn: '', note: 'Starting board number input' },
+      { name: 'Board # input (target)', type: 'INPUT', elId: '#board-tb', fn: '', note: 'Target board number input' },
+      { name: 'Numeric mode toggle', type: 'BUTTON', elId: '#num-mode-toggle', fn: 'toggleNumericMode', note: 'Switches between pin diagram and numeric keypad' },
+      { name: 'NoTap mode toggle', type: 'BUTTON', elId: '#notap-toggle', fn: 'toggleNoTap', note: 'Enables NoTap scoring (9 = strike)' },
+      { name: 'Numeric keypad', type: 'INPUT', elId: '#npb1…#npb9', fn: 'tapNumericPin', note: '9-key numeric pad (npb1–npb9)' },
+      { name: 'Strike button', type: 'BUTTON', elId: '#qa-primary', fn: 'quickPrimary', note: 'Quick-action: logs strike' },
+      { name: 'Spare button', type: 'BUTTON', elId: '#qa-spare', fn: 'quickSpare', note: 'Quick-action: logs spare' },
+      { name: 'Miss button', type: 'BUTTON', elId: '#qa-secondary', fn: 'quickSecondary', note: 'Quick-action: logs miss/gutter' },
+      { name: 'Confirm button', type: 'BUTTON', elId: '#btn-confirm', fn: 'confirmAttempt', note: 'Confirms current frame entry and advances' },
+      { name: 'Skip to Summary', type: 'BUTTON', elId: '#btn-jump-summary', fn: 'finishGame', note: 'Ends game early and goes to game complete screen' },
+      { name: 'Undo button', type: 'BUTTON', elId: '', fn: 'doUndo', note: 'Reverts last confirmed frame' },
+      { name: 'Frame 10 third ball', type: 'INPUT', elId: '', fn: '', note: 'Third delivery input — only visible in frame 10' },
+      { name: 'AI advisor button', type: 'BUTTON', elId: '', fn: '', note: 'Opens AI spare/strategy suggestion' }
+    ]},
+    { id: 's-game-complete', objects: [
+      { name: 'Game score hero card', type: 'CARD', elId: '', fn: '', note: 'Large score display at top of summary' },
+      { name: 'Game stats card', type: 'CARD', elId: '#gc-stats', fn: '', note: 'Strike %, spare %, pin stats for this game' },
+      { name: 'Frame detail card', type: 'CARD', elId: '#gc-frame-detail', fn: '', note: 'Frame-by-frame breakdown' },
+      { name: 'Next game button', type: 'BUTTON', elId: '#btn-next-game', fn: 'goNextGame', note: 'Starts the next game in the series' },
+      { name: 'View Series button', type: 'BUTTON', elId: '#btn-end-series', fn: 'endSeries', note: 'Ends series and navigates to series summary' },
+      { name: 'Series debrief (AI)', type: 'BUTTON', elId: '', fn: 'openSeriesDebriefModal', note: 'AI analysis of the completed game/series' }
+    ]},
+    { id: 's-series', objects: [
+      { name: 'New series button', type: 'BUTTON', elId: '', fn: 'openNewSeriesModal', note: 'Opens modal to start a new series' },
+      { name: 'Series card', type: 'CARD', elId: '', fn: 'openSeriesModal', note: 'Tappable card for each recorded series' },
+      { name: 'Handicap recalc button', type: 'BUTTON', elId: '#series-recalc-btn', fn: 'seriesForceRecalc', note: 'Forces recalculation of handicap for all series' }
+    ]},
+    { id: 's-leagues', objects: [
+      { name: 'Add league button', type: 'BUTTON', elId: '', fn: 'openNewLeagueModal', note: 'Opens new league creation modal' },
+      { name: 'League card', type: 'CARD', elId: '', fn: 'openLeagueModal', note: 'Each active league — tap to view sessions' },
+      { name: 'Handicap config link', type: 'BUTTON', elId: '', fn: '', note: 'Opens handicap configuration for this league' },
+      { name: 'Archive league', type: 'BUTTON', elId: '', fn: '', note: 'Archives an inactive league' }
+    ]},
+    { id: 's-tb-sessions', objects: [
+      { name: 'New team session', type: 'BUTTON', elId: '', fn: 'openGroupSetupModal', note: 'Opens setup modal for a new team bowling session' }
+    ]},
+    { id: 's-group', objects: [
+      { name: 'Full scorecard overlay', type: 'CARD', elId: '#grp-full-card', fn: '', note: 'Expandable full team scorecard' },
+      { name: 'Toggle scorecard button', type: 'BUTTON', elId: '', fn: 'toggleGroupScorecard', note: 'Shows/hides the full scorecard overlay' },
+      { name: 'Recalc beer frames', type: 'BUTTON', elId: '', fn: 'grpRecalcAllBeerFrames', note: 'Recalculates beer frame tallies for all bowlers' },
+      { name: 'Loserboard', type: 'CARD', elId: '', fn: '', note: 'Running game loser tally for the session' },
+      { name: 'Transfer to league', type: 'BUTTON', elId: '', fn: '', note: 'Transfers team session scores to a league record' }
+    ]},
+    { id: 's-balls', objects: [
+      { name: 'Add ball button', type: 'BUTTON', elId: '', fn: 'navToBall', note: 'Opens ball creation / detail flow' },
+      { name: 'Ball card', type: 'CARD', elId: '', fn: 'openBallModal', note: 'Each ball in the bag — tap for details' },
+      { name: 'Ball filter chips', type: 'CHIP', elId: '', fn: '', note: 'Filter balls by weight, type, or surface' }
+    ]},
+    { id: 's-ball-detail', objects: [
+      { name: 'Ball image', type: 'CARD', elId: '', fn: '', note: 'Ball photo / visual display' },
+      { name: 'Add surface prep', type: 'BUTTON', elId: '', fn: 'openLogSurfacePrepModal', note: 'Logs a surface preparation session' },
+      { name: 'Fetch ball info (AI)', type: 'BUTTON', elId: '', fn: '', note: 'AI lookup for ball specs and cover stock info' },
+      { name: 'Edit ball button', type: 'BUTTON', elId: '', fn: 'openEditBallModal', note: 'Edits ball name, weight, and specs' }
+    ]},
+    { id: 's-stats', objects: [
+      { name: 'Average stat card', type: 'CARD', elId: '', fn: '', note: 'Rolling average trend over time' },
+      { name: 'High game card', type: 'CARD', elId: '', fn: '', note: 'All-time and recent high game' },
+      { name: 'All Games list', type: 'CARD', elId: '', fn: '', note: 'Scrollable list of all recorded games' },
+      { name: 'Leave/split chart', type: 'CARD', elId: '', fn: 'openSpareDetailModal', note: 'Spare conversion rates by leave type' }
+    ]},
+    { id: 's-open', objects: [
+      { name: 'New open session', type: 'BUTTON', elId: '', fn: 'openNewOpenSessionModal', note: 'Starts a new casual open bowling session' },
+      { name: 'Open bowl scoring', type: 'INPUT', elId: '', fn: '', note: 'Score input for open session' },
+      { name: 'Save open session', type: 'BUTTON', elId: '', fn: '', note: 'Saves the completed open session' }
+    ]},
+    { id: 's-notap', objects: [
+      { name: 'New NoTap series', type: 'BUTTON', elId: '', fn: 'openNoTapSeriesModal', note: 'Starts a series with NoTap scoring rules' }
+    ]},
+    { id: 's-tournaments', objects: [
+      { name: 'New tournament', type: 'BUTTON', elId: '', fn: 'openNewTournamentModal', note: 'Creates a new tournament' },
+      { name: 'Tournament card', type: 'CARD', elId: '', fn: 'openTournamentModal', note: 'Each tournament entry' }
+    ]},
+    { id: 's-tournament-series', objects: [
+      { name: 'New tournament series', type: 'BUTTON', elId: '', fn: 'openNewTournamentSeriesModal', note: 'Adds a series within the current tournament' }
+    ]},
+    { id: 'Modals', objects: [
+      { name: 'Import / Export modal', type: 'MODAL', elId: '', fn: 'openExportModal', note: 'Full import/export with cloud backup options' },
+      { name: 'Settings modal', type: 'MODAL', elId: '', fn: 'openSettingsModal', note: 'App settings — bowler, center, preferences' },
+      { name: 'New series modal', type: 'MODAL', elId: '', fn: 'openNewSeriesModal', note: 'Configure and start a new series' },
+      { name: 'New league modal', type: 'MODAL', elId: '', fn: 'openNewLeagueModal', note: 'Create a new league with handicap settings' },
+      { name: 'Edit league modal', type: 'MODAL', elId: '', fn: 'openEditLeagueModal', note: 'Edit league name, night, and settings' },
+      { name: 'League stats modal', type: 'MODAL', elId: '', fn: 'openLeagueStatsModal', note: 'Season averages and trends for this league' },
+      { name: 'Add ball modal', type: 'MODAL', elId: '', fn: 'openAddBallModal', note: 'Add a new ball to the bag' },
+      { name: 'Edit ball modal', type: 'MODAL', elId: '', fn: 'openEditBallModal', note: 'Modify ball specs and surface details' },
+      { name: 'Ball detail modal', type: 'MODAL', elId: '', fn: 'openBallDetailModal', note: 'Full ball info with surface prep history' },
+      { name: 'Log surface prep modal', type: 'MODAL', elId: '', fn: 'openLogSurfacePrepModal', note: 'Log a resurfacing or cleaning session for a ball' },
+      { name: 'Attempt notes modal', type: 'MODAL', elId: '', fn: 'openAttemptNotesModal', note: 'Per-frame notes during scoring' },
+      { name: 'Series debrief modal (AI)', type: 'MODAL', elId: '', fn: 'openSeriesDebriefModal', note: 'AI-generated series analysis and coaching notes' },
+      { name: 'Game stats modal', type: 'MODAL', elId: '', fn: 'openGameStatsModal', note: 'Stats overlay for a specific game' },
+      { name: 'Edit game modal', type: 'MODAL', elId: '', fn: 'openEditGameModal', note: 'Manually edit a recorded game score' },
+      { name: 'Handicap config modal', type: 'MODAL', elId: '', fn: '', note: 'Set base score and percentage for handicap calc' },
+      { name: 'Group setup modal', type: 'MODAL', elId: '', fn: 'openGroupSetupModal', note: 'Configure team bowling session — bowlers, lanes' },
+      { name: 'Beer frame modal', type: 'MODAL', elId: '', fn: 'openBeerFrameModal', note: 'Track beer frame tally for team session' },
+      { name: 'Roster modal', type: 'MODAL', elId: '', fn: 'openRosterModal', note: 'Manage bowler roster for a league or session' },
+      { name: 'Add bowler modal', type: 'MODAL', elId: '', fn: 'openAddBowlerModal', note: 'Add a new bowler to the roster' },
+      { name: 'Spare detail modal', type: 'MODAL', elId: '', fn: 'openSpareDetailModal', note: 'Breakdown of spare conversions by pin leave' },
+      { name: 'Strike streaks modal', type: 'MODAL', elId: '', fn: 'openStrikeStreaksModal', note: 'Longest strike streaks across all games' },
+      { name: 'All-time highs modal', type: 'MODAL', elId: '', fn: 'openAllTimeHighsModal', note: 'Personal bests across all categories' },
+      { name: 'Highs by venue modal', type: 'MODAL', elId: '', fn: 'openHighsByVenueModal', note: 'Personal bests filtered by bowling center' },
+      { name: 'Open session stats modal', type: 'MODAL', elId: '', fn: 'openOpenSessionStatsModal', note: 'Stats for a completed open bowling session' },
+      { name: 'Series stats modal', type: 'MODAL', elId: '', fn: 'openSeriesStatsModal', note: 'Detailed stats for a specific series' },
+      { name: 'Tournament modal', type: 'MODAL', elId: '', fn: 'openTournamentModal', note: 'Tournament details and series list' },
+      { name: 'Theme / pin colors modal', type: 'MODAL', elId: '', fn: 'openThemeModal', note: 'Customize pin standing/knocked colors' },
+      { name: 'Import strategy modal', type: 'MODAL', elId: '', fn: 'openImportStrategyModal', note: 'Choose merge or replace on data import' },
+      { name: 'Add center modal', type: 'MODAL', elId: '', fn: 'openAddCenterModal', note: 'Add a bowling center / venue' },
+      { name: 'Add pattern modal', type: 'MODAL', elId: '', fn: 'openAddPatternModal', note: 'Add an oil pattern for lane tracking' },
+      { name: 'Edit series modal', type: 'MODAL', elId: '', fn: 'openEditSeriesModal', note: 'Edit series metadata and league assignment' },
+      { name: 'Edit open session modal', type: 'MODAL', elId: '', fn: 'openEditOpenSessionModal', note: 'Edit casual session details' },
+      { name: 'Edit tournament modal', type: 'MODAL', elId: '', fn: 'openEditTournamentModal', note: 'Edit tournament name and settings' },
+      { name: 'Roster link modal', type: 'MODAL', elId: '', fn: 'openRosterLinkModal', note: 'Link an existing bowler to a league roster' },
+      { name: 'Dev data modal', type: 'MODAL', elId: '', fn: 'openDevModal', note: 'Developer debug modal — IDB tables dump' },
+      { name: 'Modal background dismiss', type: 'MODAL', elId: '#modal-bg', fn: 'handleModalBgClick', note: 'Tapping outside modal closes it' },
+      { name: 'Toast notification', type: 'MODAL', elId: '#toast', fn: 'toastDismiss', note: 'Temporary status message — tap to dismiss' }
+    ]}
+  ]
+};
+
+// ── Registry seed from template
+function seedFromTemplate(tmpl, projId) {
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var version = proj ? proj.version : 'v1';
+  var count = 0;
+
+  tmpl.screens.forEach(function(screen) {
+    screen.objects.forEach(function(obj) {
+      var exists = AK.registry.find(function(r){
+        return r.projectId === projId && r.elId === obj.elId && r.name === obj.name;
+      });
+      if(!exists) {
+        AK.registry.push({
+          id: Date.now() + Math.random(),
+          projectId: projId,
+          screen: screen.id,
+          name: obj.name,
+          elType: obj.type,
+          elId: obj.elId,
+          fn: obj.fn || '',
+          note: obj.note || '',
+          status: 'ok',
+          version: version,
+          ts: new Date().toISOString()
+        });
+        count++;
+      }
+    });
+  });
+  AK.save();
+  return count;
+}
+
+// ── View toggle
+function toggleRegView() {
+  REG_VIEW = REG_VIEW === 'screen' ? 'list' : 'screen';
+  document.getElementById('reg-screen-view').style.display = REG_VIEW === 'screen' ? '' : 'none';
+  document.getElementById('reg-list-view').style.display = REG_VIEW === 'list' ? '' : 'none';
+  document.getElementById('reg-view-btn').textContent = REG_VIEW === 'screen' ? '☰ List View' : '⊞ Screen View';
+  if(REG_VIEW === 'list') renderRegistryList();
+  else renderRegistryScreens();
+}
+
+function regSelectProject() {
+  REG_SELECTED_SCREEN = null;
+  document.getElementById('reg-object-panel').style.display = 'none';
+  document.getElementById('reg-screen-grid').style.display = '';
+  renderRegistryScreens();
+}
 
 function setRegFilter(f, btn) {
   REG_FILTER = f;
   document.querySelectorAll('#reg-filters .filter-chip').forEach(function(c){ c.classList.remove('active'); });
   btn.classList.add('active');
-  renderRegistry();
+  renderRegistryScreens();
+  if(REG_VIEW === 'list') renderRegistryList();
+  if(REG_SELECTED_SCREEN) showRegScreen(REG_SELECTED_SCREEN);
 }
 
-// Map element types to readable category groups
-var REG_GROUPS = [
-  { key: 'Actions',    label: 'Buttons & Actions',    desc: 'Tappable buttons, links, and interactive controls',   match: function(t){ return t==='button'||t==='a'; } },
-  { key: 'Inputs',     label: 'Forms & Inputs',       desc: 'Text fields, dropdowns, checkboxes, and textareas',   match: function(t){ return t==='input'||t==='textarea'||t==='select'||t==='form'; } },
-  { key: 'Navigation', label: 'Navigation',           desc: 'Nav bars, tabs, menus, and screen routing elements',  match: function(t){ return t==='nav'; } },
-  { key: 'Layout',     label: 'Structural Layout',    desc: 'Page sections, headers, footers, and main containers',match: function(t){ return ['header','footer','main','section','aside'].includes(t); } },
-  { key: 'Containers', label: 'Panels & Containers',  desc: 'Named divs and spans that hold other content',        match: function(t){ return t==='div'||t==='span'; } },
-  { key: 'Other',      label: 'Other Elements',       desc: 'Miscellaneous elements not in another category',      match: function(){ return true; } }
-];
+// ── Screen grid render
+function renderRegistry() { renderRegistryScreens(); }
 
-// Plain English descriptions of what each status means
-var STATUS_INFO = {
-  ok:       { label: 'Working',  desc: 'Confirmed present and functioning correctly', color: 'var(--green)' },
-  changed:  { label: 'Updated',  desc: 'Appeared or was modified in a recent diff — needs a look', color: 'var(--amber)' },
-  missing:  { label: 'Missing',  desc: 'Was working before but is no longer found in the latest version', color: 'var(--red)' },
-  issue:    { label: 'Issue',    desc: 'Manually flagged — something about this element needs attention', color: 'var(--purple)' },
-  resolved: { label: 'Fixed',    desc: 'Was missing or had an issue, now confirmed resolved', color: 'var(--blue)' }
-};
+function renderRegistryScreens() {
+  var projId = document.getElementById('reg-project-sel').value;
+  var items = AK.registry.filter(function(r){ return !projId || r.projectId == projId; });
 
-function regCategoryKey(elType) {
-  var t = (elType || '').split('[')[0].toLowerCase();
-  for(var i = 0; i < REG_GROUPS.length; i++) {
-    if(REG_GROUPS[i].match(t)) return REG_GROUPS[i].key;
+  // Group by screen
+  var byScreen = {};
+  items.forEach(function(r) {
+    var s = r.screen || 'global';
+    if(!byScreen[s]) byScreen[s] = [];
+    byScreen[s].push(r);
+  });
+
+  var grid = document.getElementById('reg-screen-grid');
+
+  if(!items.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:30px">' +
+      '<span class="empty-state-icon">🗺</span>' +
+      'No elements mapped yet.<br>' +
+      '<span style="color:var(--t2)">Use <strong>⊙ Set Baseline</strong> to auto-scan from HTML,<br>' +
+      'or <strong>load the BowlingDB template</strong> if this is that project.</span><br><br>' +
+      '<button class="btn teal" onclick="showBowlingDBSeedOption()">🎳 Load BowlingDB Template</button>' +
+    '</div>';
+    return;
   }
-  return 'Other';
+
+  // Build screen order: known screens first, then discovered, then Modals last
+  var knownOrder = Object.keys(SCREEN_META);
+  var discovered = Object.keys(byScreen).filter(function(s){ return !SCREEN_META[s]; });
+  var screenOrder = knownOrder.filter(function(s){ return byScreen[s]; }).concat(discovered);
+  if(byScreen['Modals']) { screenOrder = screenOrder.filter(function(s){ return s !== 'Modals'; }); screenOrder.push('Modals'); }
+
+  var html = '';
+  screenOrder.forEach(function(screenId) {
+    var els = byScreen[screenId];
+    if(!els) return;
+    var filtered = REG_FILTER === 'all' ? els : els.filter(function(r){ return r.status === REG_FILTER; });
+    var meta = SCREEN_META[screenId] || { icon: '◻', name: screenId, desc: '' };
+
+    // Count statuses
+    var counts = {};
+    els.forEach(function(r){ counts[r.status] = (counts[r.status]||0)+1; });
+    var hasMissing = counts.missing > 0;
+    var hasChanged = counts.changed > 0 || counts.issue > 0;
+    var allOk = Object.keys(counts).every(function(s){ return s==='ok'||s==='resolved'; });
+
+    var tileClass = 'reg-screen-tile' +
+      (hasMissing ? ' has-issues' : hasChanged ? ' has-changes' : allOk ? ' all-ok' : '') +
+      (screenId === 'Modals' ? ' full-width' : '');
+
+    var countChips = '';
+    if(counts.missing) countChips += '<span class="reg-count-chip missing">' + counts.missing + ' missing</span>';
+    if(counts.changed) countChips += '<span class="reg-count-chip changed">' + counts.changed + ' updated</span>';
+    if(counts.issue) countChips += '<span class="reg-count-chip issue">' + counts.issue + ' issue</span>';
+    if(!counts.missing && !counts.changed && !counts.issue) {
+      countChips = '<span class="reg-count-chip ok">' + els.length + ' ok</span>';
+    }
+
+    html += '<div class="' + tileClass + '" onclick="showRegScreen(\'' + screenId + '\')">' +
+      '<div class="reg-screen-tile-accent"></div>' +
+      '<div class="reg-screen-tile-icon">' + meta.icon + '</div>' +
+      '<div class="reg-screen-tile-name">' + _esc(meta.name) + '</div>' +
+      '<div class="reg-screen-tile-sub">' + els.length + ' objects</div>' +
+      '<div class="reg-screen-tile-counts">' + countChips + '</div>' +
+    '</div>';
+  });
+
+  // Add new screen tile
+  html += '<div class="reg-screen-tile" onclick="regAddScreen()" style="border-style:dashed;justify-content:center;align-items:center;min-height:90px">' +
+    '<div style="font-size:20px;color:var(--t3)">+</div>' +
+    '<div style="font-size:11px;color:var(--t3);margin-top:4px">Add Screen</div>' +
+  '</div>';
+
+  grid.innerHTML = html;
 }
 
-var REG_OPEN_GROUPS = {}; // track which groups are expanded
-var REG_OPEN_DRAWER = null; // currently open drill-down
+// ── Show objects for a screen
+function showRegScreen(screenId) {
+  REG_SELECTED_SCREEN = screenId;
+  REG_TYPE_FILTER = 'all';
+  REG_OPEN_DRAWER = null;
 
-function toggleRegGroup(key) {
-  REG_OPEN_GROUPS[key] = !REG_OPEN_GROUPS[key];
-  var grp = document.getElementById('reg-group-' + key);
-  if(grp) grp.classList.toggle('open', !!REG_OPEN_GROUPS[key]);
+  var projId = document.getElementById('reg-project-sel').value;
+  var meta = SCREEN_META[screenId] || { icon: '◻', name: screenId, desc: '' };
+
+  document.getElementById('reg-screen-grid').style.display = 'none';
+  var panel = document.getElementById('reg-object-panel');
+  panel.style.display = '';
+  document.getElementById('reg-object-panel-title').textContent = meta.icon + ' ' + meta.name;
+
+  renderRegObjects(screenId, projId);
 }
 
-function toggleRegDrawer(id) {
-  // Close previously open drawer
-  if(REG_OPEN_DRAWER && REG_OPEN_DRAWER !== id) {
-    var prev = document.getElementById('reg-drawer-' + REG_OPEN_DRAWER);
-    if(prev) prev.classList.remove('open');
+function regBackToScreens() {
+  REG_SELECTED_SCREEN = null;
+  REG_OPEN_DRAWER = null;
+  document.getElementById('reg-object-panel').style.display = 'none';
+  document.getElementById('reg-screen-grid').style.display = '';
+  renderRegistryScreens();
+}
+
+function renderRegObjects(screenId, projId) {
+  var items = AK.registry.filter(function(r){
+    return r.screen === screenId && (!projId || r.projectId == projId) &&
+      (REG_FILTER === 'all' || r.status === REG_FILTER);
+  });
+
+  // Build type filter chips from available types in this screen
+  var allForScreen = AK.registry.filter(function(r){ return r.screen === screenId; });
+  var types = {};
+  allForScreen.forEach(function(r){ types[r.elType] = (types[r.elType]||0)+1; });
+
+  var typeHTML = '<button class="filter-chip' + (REG_TYPE_FILTER==='all'?' active':'') + '" onclick="setRegTypeFilter(\'all\',this)">All</button>';
+  Object.keys(types).forEach(function(t) {
+    var tm = TYPE_META[t] || { icon: '◻', label: t };
+    typeHTML += '<button class="filter-chip' + (REG_TYPE_FILTER===t?' active':'') + '" onclick="setRegTypeFilter(\'' + t + '\',this)">' +
+      tm.icon + ' ' + tm.label + ' <span style="opacity:0.5">(' + types[t] + ')</span></button>';
+  });
+  document.getElementById('reg-type-filters').innerHTML = typeHTML;
+
+  // Apply type filter
+  if(REG_TYPE_FILTER !== 'all') {
+    items = items.filter(function(r){ return r.elType === REG_TYPE_FILTER; });
   }
-  var drawer = document.getElementById('reg-drawer-' + id);
-  if(!drawer) return;
-  var opening = !drawer.classList.contains('open');
-  drawer.classList.toggle('open', opening);
-  REG_OPEN_DRAWER = opening ? id : null;
+
+  var list = document.getElementById('reg-object-list');
+  if(!items.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:20px">' +
+      (allForScreen.length ? 'No elements match this filter.' : 'No objects yet — tap + Add to create one.') +
+      '</div>';
+    return;
+  }
+
+  // Group by type within screen
+  var grouped = {};
+  var typeOrder = ['BUTTON','INPUT','CARD','MODAL','NAV','CHIP','TILE','OTHER'];
+  items.forEach(function(r){ if(!grouped[r.elType]) grouped[r.elType]=[];  grouped[r.elType].push(r); });
+
+  var html = '';
+  typeOrder.forEach(function(t) {
+    if(!grouped[t]) return;
+    var tm = TYPE_META[t] || { icon: '◻', label: t };
+    html += '<div style="padding:6px 14px 2px;font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--t3)">' +
+      tm.icon + ' ' + tm.label + 's</div>';
+
+    grouped[t].forEach(function(r) {
+      var si = STATUS_INFO[r.status] || STATUS_INFO.ok;
+      var isOpen = REG_OPEN_DRAWER == r.id;
+      var safeId = JSON.stringify(r.id);
+      var fn = r.fn ? r.fn + '()' : '';
+      var elid = r.elId || '';
+
+      html +=
+        '<div class="reg-obj-row ' + r.status + '" onclick="toggleRegObjDrawer(' + safeId + ')">' +
+          '<div class="reg-obj-type-icon">' + tm.icon + '</div>' +
+          '<div class="reg-obj-info">' +
+            '<div class="reg-obj-name">' + _esc(r.name || r.elId || 'Unnamed') + '</div>' +
+            '<div class="reg-obj-meta">' +
+              (elid ? '<span class="reg-obj-id">' + _esc(elid) + '</span>' : '') +
+              (fn ? '<span class="reg-obj-fn">' + _esc(fn) + '</span>' : '') +
+              (r.note ? '<span style="color:var(--t3);font-style:italic">' + _esc(r.note.slice(0,40)) + (r.note.length>40?'…':'') + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<span class="status-pill ' + r.status + '"></span>' +
+          '<span class="reg-obj-chevron">' + (isOpen?'▾':'▸') + '</span>' +
+        '</div>' +
+        '<div class="reg-obj-drawer ' + r.status + (isOpen?' open':'') + '" id="reg-obj-drawer-' + r.id + '">' +
+          renderRegDrawer(r, safeId) +
+        '</div>';
+    });
+  });
+
+  list.innerHTML = html;
 }
 
-function setRegStatusFromDrawer(id, status) {
+function renderRegDrawer(r, safeId) {
+  var si = STATUS_INFO[r.status] || STATUS_INFO.ok;
+  var tm = TYPE_META[r.elType] || { icon:'◻', label: r.elType, desc: '' };
+  var ver = (r.version||'').replace(/^v+/,'');
+
+  return '<div class="reg-obj-drawer-name">' + _esc(r.name || 'Unnamed') + '</div>' +
+    '<div class="reg-obj-drawer-desc"><strong style="color:' + si.color + '">' + si.label + ':</strong> ' + si.desc + '</div>' +
+    '<div class="reg-obj-drawer-meta-grid">' +
+      '<div class="reg-obj-drawer-meta-item"><div class="reg-obj-drawer-meta-label">Type</div>' +
+        '<div class="reg-obj-drawer-meta-val">' + tm.icon + ' ' + tm.label + '</div></div>' +
+      '<div class="reg-obj-drawer-meta-item"><div class="reg-obj-drawer-meta-label">Version</div>' +
+        '<div class="reg-obj-drawer-meta-val">v' + _esc(ver) + '</div></div>' +
+      (r.elId ? '<div class="reg-obj-drawer-meta-item" style="grid-column:1/-1"><div class="reg-obj-drawer-meta-label">Element ID</div>' +
+        '<div class="reg-obj-drawer-meta-val mono">' + _esc(r.elId) + '</div></div>' : '') +
+      (r.fn ? '<div class="reg-obj-drawer-meta-item" style="grid-column:1/-1"><div class="reg-obj-drawer-meta-label">Function</div>' +
+        '<div class="reg-obj-drawer-meta-val mono">' + _esc(r.fn) + '()</div></div>' : '') +
+    '</div>' +
+    '<div class="reg-status-grid">' +
+      Object.keys(STATUS_INFO).map(function(s) {
+        var ssi = STATUS_INFO[s];
+        return '<button class="reg-status-btn' + (r.status===s?' active-'+s:'') + '" onclick="event.stopPropagation();setRegObjStatus(' + safeId + ',\'' + s + '\')">' +
+          ssi.icon + ' ' + ssi.label + '</button>';
+      }).join('') +
+    '</div>' +
+    '<input type="text" class="reg-note-inline" placeholder="Add a note…" value="' + _esc(r.note||'') + '" ' +
+      'onclick="event.stopPropagation()" onblur="setRegObjNote(' + safeId + ', this.value)">';
+}
+
+function toggleRegObjDrawer(id) {
+  if(REG_OPEN_DRAWER == id) {
+    REG_OPEN_DRAWER = null;
+  } else {
+    REG_OPEN_DRAWER = id;
+  }
+  renderRegObjects(REG_SELECTED_SCREEN, document.getElementById('reg-project-sel').value);
+}
+
+function setRegObjStatus(id, status) {
   var r = AK.registry.find(function(x){ return x.id == id; });
   if(!r) return;
   r.status = status;
   AK.save();
-  renderRegistry(); // re-render to update colours
-  // Re-open the same drawer and group after re-render
   REG_OPEN_DRAWER = id;
-  if(r.elType) {
-    var grpKey = regCategoryKey(r.elType);
-    REG_OPEN_GROUPS[grpKey] = true;
-  }
-  renderRegistry();
-  toast('Status set: ' + (STATUS_INFO[status] ? STATUS_INFO[status].label : status));
+  renderRegObjects(REG_SELECTED_SCREEN, document.getElementById('reg-project-sel').value);
+  renderRegistryScreens();
+  toast(STATUS_INFO[status].label + ': ' + r.name);
 }
 
-function setRegNoteFromDrawer(id, note) {
+function setRegObjNote(id, note) {
   var r = AK.registry.find(function(x){ return x.id == id; });
   if(r) { r.note = note; AK.save(); }
+}
+
+function setRegTypeFilter(t, btn) {
+  REG_TYPE_FILTER = t;
+  document.querySelectorAll('#reg-type-filters .filter-chip').forEach(function(c){ c.classList.remove('active'); });
+  btn.classList.add('active');
+  renderRegObjects(REG_SELECTED_SCREEN, document.getElementById('reg-project-sel').value);
+}
+
+// ── Add new screen
+function regAddScreen() {
+  var name = prompt('Screen ID (e.g. s-profile) or friendly name:');
+  if(!name) return;
+  if(!SCREEN_META[name]) SCREEN_META[name] = { icon: '◻', name: name, desc: 'Custom screen' };
+  // Add a placeholder element so the screen appears
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  AK.registry.push({
+    id: Date.now() + Math.random(), projectId: projId, screen: name,
+    name: 'New object', elType: 'BUTTON', elId: '', fn: '', note: '',
+    status: 'ok', version: '', ts: new Date().toISOString()
+  });
+  AK.save();
+  renderRegistryScreens();
+  toast('Screen added: ' + name);
+}
+
+// ── Add new object to current screen
+function regAddObject() {
+  if(!REG_SELECTED_SCREEN) return;
+  openModal('Add Object to: ' + (SCREEN_META[REG_SELECTED_SCREEN]||{name:REG_SELECTED_SCREEN}).name,
+    '<div class="col">' +
+      '<div class="sec-label">Object Name</div>' +
+      '<input type="text" id="add-obj-name" placeholder="e.g. Strike button">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Type</div>' +
+      '<select id="add-obj-type" style="height:36px;font-size:14px">' +
+        Object.keys(TYPE_META).map(function(t){ return '<option value="' + t + '">' + TYPE_META[t].icon + ' ' + TYPE_META[t].label + '</option>'; }).join('') +
+      '</select>' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Element ID (optional)</div>' +
+      '<input type="text" id="add-obj-id" placeholder="#element-id">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Function (optional)</div>' +
+      '<input type="text" id="add-obj-fn" placeholder="onclickFunction">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Note</div>' +
+      '<input type="text" id="add-obj-note" placeholder="What does this do?">' +
+    '</div>',
+    '<button class="btn teal" onclick="saveAddObject()">Add Object</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function saveAddObject() {
+  var name = document.getElementById('add-obj-name').value.trim();
+  if(!name) { toast('Name required'); return; }
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  AK.registry.push({
+    id: Date.now() + Math.random(), projectId: projId, screen: REG_SELECTED_SCREEN,
+    name: name,
+    elType: document.getElementById('add-obj-type').value,
+    elId: document.getElementById('add-obj-id').value.trim(),
+    fn: document.getElementById('add-obj-fn').value.trim(),
+    note: document.getElementById('add-obj-note').value.trim(),
+    status: 'ok',
+    version: proj ? proj.version : '',
+    ts: new Date().toISOString()
+  });
+  AK.save();
+  closeModal();
+  renderRegObjects(REG_SELECTED_SCREEN, projId);
+  renderRegistryScreens();
+  toast('Object added: ' + name);
+}
+
+// ── BowlingDB seed option
+function showBowlingDBSeedOption() {
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  openModal('Load BowlingDB Template',
+    '<div style="font-size:12px;color:var(--t2);line-height:1.7">' +
+      'This will pre-seed the Element Map with <strong>' +
+      BOWLINGDB_TEMPLATE.screens.reduce(function(n,s){return n+s.objects.length;},0) +
+      ' named objects</strong> across ' + BOWLINGDB_TEMPLATE.screens.length + ' screens — ' +
+      'all set to <strong style="color:var(--green)">Working</strong> status.<br><br>' +
+      'Existing entries for this project are kept; only new entries are added.' +
+    '</div>' +
+    '<div class="col" style="margin-top:4px">' +
+      '<div class="sec-label">Apply to Project</div>' +
+      '<select id="seed-proj-sel" style="height:36px;font-size:14px">' +
+        (proj ? '<option value="' + proj.id + '" selected>' + _esc(proj.name) + '</option>' : '') +
+        AK.projects.filter(function(p){ return !proj || p.id !== proj.id; }).map(function(p){
+          return '<option value="' + p.id + '">' + _esc(p.name) + '</option>';
+        }).join('') +
+      '</select>' +
+    '</div>',
+    '<button class="btn teal" onclick="applySeed()">🎳 Load Template</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function applySeed() {
+  var projId = parseInt(document.getElementById('seed-proj-sel').value);
+  if(!projId) { toast('Select a project first'); return; }
+  var count = seedFromTemplate(BOWLINGDB_TEMPLATE, projId);
+  closeModal();
+  renderRegistryScreens();
+  toast('Loaded ' + count + ' objects from BowlingDB template');
+}
+
+// ── List view render (desktop / alternative)
+function renderRegistryList() {
+  var projId = document.getElementById('reg-project-sel').value;
+  var items = AK.registry.filter(function(r){
+    return (!projId || r.projectId == projId) && (REG_FILTER === 'all' || r.status === REG_FILTER);
+  });
+
+  var tbody = document.getElementById('registry-tbody');
+  if(!tbody) return;
+
+  tbody.innerHTML = items.map(function(r) {
+    var sm = SCREEN_META[r.screen] || { icon:'◻', name: r.screen };
+    var tm = TYPE_META[r.elType] || { icon:'◻', label: r.elType };
+    var si = STATUS_INFO[r.status] || STATUS_INFO.ok;
+    var ver = (r.version||'').replace(/^v+/,'');
+    return '<tr>' +
+      '<td><div style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(r.name||r.elId||'—') + '</div>' +
+        (r.elId ? '<div style="font-size:10px;color:var(--teal)">' + _esc(r.elId) + '</div>' : '') + '</td>' +
+      '<td style="font-size:11px;color:var(--t2)">' + sm.icon + ' ' + _esc(sm.name) + '</td>' +
+      '<td><span class="type-pill ' + r.elType + '">' + tm.icon + ' ' + tm.label + '</span></td>' +
+      '<td><span class="status-pill ' + r.status + '"></span></td>' +
+      '<td style="font-size:10px;color:var(--t2);max-width:160px">' + _esc(r.note||'') + '</td>' +
+      '<td style="font-size:10px;color:var(--t3)">v' + _esc(ver) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ── Legacy compat stubs (called from sync / baseline functions)
+function setRegStatus(id, status) {
+  var r = AK.registry.find(function(x){ return x.id == id; });
+  if(r) { r.status = status; AK.save(); }
+}
+function setRegNote(id, note) {
+  var r = AK.registry.find(function(x){ return x.id == id; });
+  if(r) { r.note = note; AK.save(); }
+}
+
+// ── Clear resolved
+function clearResolvedRegistry() {
+  var before = AK.registry.length;
+  AK.registry = AK.registry.filter(function(r){ return r.status !== 'resolved'; });
+  AK.save();
+  renderRegistryScreens();
+  if(REG_SELECTED_SCREEN) renderRegObjects(REG_SELECTED_SCREEN, document.getElementById('reg-project-sel').value);
+  toast('Cleared ' + (before - AK.registry.length) + ' resolved entries');
+}
+
+// ── AI Naming Pass
+async function triggerAiNamingPass() {
+  var key = localStorage.getItem('ak_api_key') || '';
+  if(!key) { toast('Add your API key in the Audit tab first'); return; }
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  var unnamed = AK.registry.filter(function(r){
+    return (!projId || r.projectId == projId) && (!r.name || r.name === r.elId || r.name === r.fn);
+  });
+  if(!unnamed.length) { toast('No unnamed elements to process'); return; }
+
+  toast('AI naming ' + unnamed.length + ' elements…');
+  var prompt = 'You are a PWA UI mapping assistant. Given these raw HTML element identifiers, provide a short human-readable name (3-5 words max) for each. Return ONLY a JSON array of objects with "id" and "name" fields, nothing else.\n\n' +
+    'Elements:\n' + unnamed.slice(0,40).map(function(r){
+      return JSON.stringify({ id: r.id, elId: r.elId, fn: r.fn, type: r.elType, screen: r.screen });
+    }).join('\n');
+
+  try {
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+    });
+    var data = await resp.json();
+    var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+    var clean = text.replace(/```json|```/g,'').trim();
+    var results = JSON.parse(clean);
+    var updated = 0;
+    results.forEach(function(item) {
+      var r = AK.registry.find(function(x){ return x.id == item.id; });
+      if(r && item.name) { r.name = item.name; updated++; }
+    });
+    AK.save();
+    renderRegistryScreens();
+    if(REG_SELECTED_SCREEN) renderRegObjects(REG_SELECTED_SCREEN, projId);
+    toast('Named ' + updated + ' elements');
+  } catch(e) { toast('AI naming failed: ' + e.message); }
+}
+
+// ── Export
+function doExportRegistry() {
+  var data = JSON.stringify({ _auditkit:true, _exported:new Date().toISOString(), registry:AK.registry, projects:AK.projects }, null, 2);
+  copyOrShare(data, 'auditkit-registry.json');
 }
 
 function renderRegistry() {
@@ -2731,29 +3607,6 @@ function renderRegistry() {
   });
 
   cards.innerHTML = groupHTML || '<div class="empty-state" style="padding:20px">No elements match this filter.</div>';
-}
-
-function setRegStatus(id, status) {
-  var r = AK.registry.find(function(x){ return x.id == id; });
-  if(r) { r.status = status; AK.save(); }
-}
-
-function setRegNote(id, note) {
-  var r = AK.registry.find(function(x){ return x.id == id; });
-  if(r) { r.note = note; AK.save(); }
-}
-
-function clearResolvedRegistry() {
-  var before = AK.registry.length;
-  AK.registry = AK.registry.filter(function(r){ return r.status !== 'resolved'; });
-  AK.save();
-  renderRegistry();
-  toast('Cleared ' + (before - AK.registry.length) + ' resolved entries');
-}
-
-function doExportRegistry() {
-  var data = JSON.stringify({ _auditkit: true, _exported: new Date().toISOString(), registry: AK.registry, projects: AK.projects }, null, 2);
-  copyOrShare(data, 'auditkit-registry.json');
 }
 
 // ════════════════════════════════════════════════════════════════
