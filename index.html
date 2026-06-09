@@ -1910,6 +1910,7 @@
             <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
             <button class="btn sm purple" onclick="triggerAiNamingPass()" style="flex-shrink:0">✦ AI Name Pass</button>
             <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
+            <button class="btn sm red" onclick="confirmClearRegistry()" style="flex-shrink:0">⚠ Clear Registry</button>
             <button class="btn sm" onclick="toggleRegView()" id="reg-view-btn" style="flex-shrink:0">☰ List View</button>
           </div>
         </div>
@@ -3630,6 +3631,47 @@ function clearResolvedRegistry() {
   renderRegistryScreens();
   if(REG_SELECTED_SCREEN) renderRegObjects(REG_SELECTED_SCREEN, document.getElementById('reg-project-sel').value);
   toast('Cleared ' + (before - AK.registry.length) + ' resolved entries');
+}
+
+function confirmClearRegistry() {
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  if(!projId) { toast('Select a project first'); return; }
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  if(!proj) { toast('Project not found'); return; }
+  var count = AK.registry.filter(function(r){ return r.projectId == projId; }).length;
+  if(!count) { toast('No registry entries for this project'); return; }
+
+  openModal(
+    '⚠ Clear Registry — ' + _esc(proj.name),
+    '<div style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:10px">This will permanently delete all ' + count + ' registry entries for <em>' + _esc(proj.name) + '</em>. This cannot be undone.</div>' +
+    '<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Use this when you need a clean slate — for example after fixing element type mappings. Export the registry first if you want a backup.</div>' +
+    '<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Type the project name to confirm:</div>' +
+    '<input id="clear-registry-confirm-input" type="text" placeholder="' + _esc(proj.name) + '" style="width:100%;box-sizing:border-box;font-size:14px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--t1)" autocomplete="off">',
+    '<button class="btn red" onclick="executeClearRegistry(' + proj.id + ')">Delete All Entries</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+  // Focus the input after modal opens
+  setTimeout(function(){ var el = document.getElementById('clear-registry-confirm-input'); if(el) el.focus(); }, 150);
+}
+
+function executeClearRegistry(projId) {
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  var projName = proj ? proj.name : '';
+  var input = document.getElementById('clear-registry-confirm-input');
+  if(!input || input.value.trim() !== projName) {
+    if(input) input.style.borderColor = 'var(--red)';
+    toast('Type the project name exactly to confirm');
+    return;
+  }
+  var before = AK.registry.filter(function(r){ return r.projectId == projId; }).length;
+  AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
+  AK.save();
+  closeModal();
+  REG_SELECTED_SCREEN = null;
+  document.getElementById('reg-object-panel').style.display = 'none';
+  document.getElementById('reg-screen-grid').style.display = '';
+  renderRegistryScreens();
+  toast('Registry cleared — ' + before + ' entries deleted');
 }
 
 // ── AI Naming Pass
