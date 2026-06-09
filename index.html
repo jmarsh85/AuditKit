@@ -1813,7 +1813,10 @@
                   ondragover="event.preventDefault()" ondrop="dropFile('a',event)">
                   Drop .html or tap to browse
                 </div>
-                <div id="slot-a-info" class="slot-info" style="display:none"></div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div id="slot-a-info" class="slot-info" style="display:none;flex:1"></div>
+                  <button id="slot-a-refetch-btn" class="btn sm" onclick="refetchSlot('a')" style="display:none;flex-shrink:0">⟳</button>
+                </div>
                 <!-- textarea hidden after load to avoid rendering overhead -->
                 <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…" style="display:none"></textarea>
                 <button class="btn sm" id="slot-a-paste-btn" onclick="toggleSlotPaste('a')" style="margin-top:6px">✎ Paste instead</button>
@@ -1831,7 +1834,10 @@
                   ondragover="event.preventDefault()" ondrop="dropFile('b',event)">
                   Drop .html or tap to browse
                 </div>
-                <div id="slot-b-info" class="slot-info" style="display:none"></div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div id="slot-b-info" class="slot-info" style="display:none;flex:1"></div>
+                  <button id="slot-b-refetch-btn" class="btn sm" onclick="refetchSlot('b')" style="display:none;flex-shrink:0">⟳</button>
+                </div>
                 <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…" style="display:none"></textarea>
                 <button class="btn sm" id="slot-b-paste-btn" onclick="toggleSlotPaste('b')" style="margin-top:6px">✎ Paste instead</button>
               </div>
@@ -2678,12 +2684,33 @@ async function ghLoadIntoSlot(slot, path) {
 
     statusEl.textContent = '✓ ' + filename + ' → Slot ' + slot.toUpperCase();
     toast('Loaded into Version ' + slot.toUpperCase() + ': ' + filename);
+    // Save for re-fetch
+    localStorage.setItem('ak_last_gh_path_' + slot, path);
+    localStorage.setItem('ak_last_gh_repo_' + slot, repo);
+    localStorage.setItem('ak_last_gh_branch_' + slot, branch);
+    var refetchBtn = document.getElementById('slot-' + slot + '-refetch-btn');
+    if(refetchBtn) refetchBtn.style.display = '';
 
   } catch(e) {
     statusEl.textContent = 'Failed: ' + e.message;
     toast('Could not load: ' + e.message);
   }
 }
+// ── Re-fetch the last GitHub file loaded into a slot
+async function refetchSlot(slot) {
+  var path   = localStorage.getItem('ak_last_gh_path_'   + slot);
+  var repo   = localStorage.getItem('ak_last_gh_repo_'   + slot);
+  var branch = localStorage.getItem('ak_last_gh_branch_' + slot);
+  if(!path || !repo) { toast('No GitHub file recorded for Slot ' + slot.toUpperCase()); return; }
+
+  // Temporarily restore repo/branch fields so ghLoadIntoSlot reads them correctly
+  document.getElementById('gh-repo').value   = repo;
+  document.getElementById('gh-branch').value = branch;
+
+  toast('Re-fetching ' + path.split('/').pop() + '…');
+  await ghLoadIntoSlot(slot, path);
+}
+
 // ── Slot paste toggle (hide/show textarea to avoid rendering overhead)
 function toggleSlotPaste(slot) {
   var ta = document.getElementById('html-' + slot);
