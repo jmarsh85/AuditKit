@@ -4019,6 +4019,9 @@ async function triggerAiSummary() {
     var text = (resp.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     out.textContent = text;
     out.className = 'has-content';
+    document.getElementById('ai-panel-actions').innerHTML =
+      '<button class="btn sm teal" onclick="copyAiOutput()">⬆ Copy Output</button>' +
+      '<button class="btn sm" onclick="initAiPanel()">↩ New Summary</button>';
   } catch(e) {
     out.textContent = 'API call failed: ' + e.message + '\n\nUse Copy Prompt instead — it works from any context.';
     out.className = '';
