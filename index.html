@@ -1875,25 +1875,15 @@
         <!-- AI / PROMPT PANEL -->
         <div id="ai-panel" class="card">
           <div class="card-header">
-            <span class="card-title">✦ Claude Handoff</span>
-            <div class="row">
-              <button class="btn teal sm" onclick="buildAndCopyPrompt()">⬆ Copy Prompt</button>
-              <button class="btn sm purple" onclick="triggerAiSummary()">▶ Run Inline</button>
+            <span class="card-title">✦ AI Summary</span>
+            <div class="row" id="ai-panel-actions">
             </div>
           </div>
-          <!-- Prompt preview area -->
-          <div id="ai-prompt-preview" style="display:none;padding:10px 14px;font-size:10px;color:var(--t3);background:var(--bg3);border-bottom:1px solid var(--border1);white-space:pre-wrap;max-height:120px;overflow-y:auto;line-height:1.5"></div>
-          <!-- Inline result (only shown when Run Inline succeeds) -->
-          <div id="ai-output">Tap <strong>Copy Prompt</strong> to copy a ready-to-paste Claude prompt with your full diff context.<br><br>Or tap <strong>Run Inline</strong> if AuditKit is hosted on HTTPS (GitHub Pages) — this requires an API key and won't work from a local file.</div>
-          <div class="ai-key-row" id="ai-key-row-wrap">
+          <div id="ai-output" style="padding:12px 14px;font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap;word-break:break-word"></div>
+          <div class="ai-key-row" id="ai-key-row-wrap" style="display:none">
             <span class="ai-key-label">API Key:</span>
-            <input type="password" id="api-key-input" placeholder="sk-ant-… (only needed for Run Inline)" style="flex:1;height:26px;font-size:10px"
-              oninput="saveApiKey(this.value)">
+            <input type="password" id="api-key-input" placeholder="sk-ant-…" style="flex:1;height:26px;font-size:10px" oninput="saveApiKey(this.value)">
             <button class="btn sm" onclick="loadApiKeyToInput()">Load</button>
-          </div>
-          <div style="padding:8px 14px 10px;font-size:10px;color:var(--t3);line-height:1.5">
-            <strong style="color:var(--t2)">Copy Prompt</strong> works everywhere — copies a structured prompt to your clipboard, then paste it into any Claude chat.<br>
-            <strong style="color:var(--t2)">Run Inline</strong> calls the API directly — requires hosting on HTTPS (not a local file).
           </div>
         </div>
       </div>
@@ -2158,7 +2148,7 @@ function showScreen(name) {
   if(name === 'registry') renderRegistry();
   if(name === 'log') renderLogEntries();
   if(name === 'projects') renderProjects();
-  if(name === 'audit') populateAuditSelects();
+  if(name === 'audit') { populateAuditSelects(); initAiPanel(); }
   dkRenderState();
 }
 
@@ -2358,13 +2348,25 @@ function copyAiOutput() {
   copyOrShare(text, 'auditkit-ai-summary.txt');
 }
 
-function resetAiPanel() {
+// ── Called whenever the audit screen is shown or a diff runs
+function initAiPanel() {
+  var actionsEl = document.getElementById('ai-panel-actions');
+  var keyRow = document.getElementById('ai-key-row-wrap');
   var out = document.getElementById('ai-output');
-  out.textContent = 'Tap Copy Prompt to copy a ready-to-paste Claude prompt with your full diff context.\n\nOr tap Run Inline if AuditKit is hosted on HTTPS (GitHub Pages) — this requires an API key and won\'t work from a local file.';
-  out.className = '';
-  var preview = document.getElementById('ai-prompt-preview');
-  if(preview) preview.style.display = 'none';
+
+  actionsEl.innerHTML =
+    '<button class="btn teal sm" onclick="triggerAiSummary()">✦ Run Summary</button>' +
+    '<button class="btn sm" onclick="buildAndCopyPrompt()">⬆ Copy Prompt</button>';
+  keyRow.style.display = 'flex';
+  loadApiKeyToInput();
+
+  if(!AK.lastDiff) {
+    out.textContent = 'Run a gap analysis first, then use Run Summary for an inline AI review, or Copy Prompt to paste into any Claude chat.';
+    out.className = '';
+  }
 }
+
+function resetAiPanel() { initAiPanel(); }
 
 // ════════════════════════════════════════════════════════════════
 //  GITHUB FETCH
@@ -2834,6 +2836,7 @@ function runAudit() {
 
   document.getElementById('audit-results').classList.add('visible');
   document.getElementById('audit-clear-btn').style.display = 'inline-flex';
+  initAiPanel();
   toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' differences, ' + unexpected.length + ' irregular');
 }
 
@@ -3599,7 +3602,7 @@ async function triggerAiNamingPass() {
 
   try {
     var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] });
-    var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01' });
+    var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     var clean = text.replace(/```json|```/g,'').trim();
     var results = JSON.parse(clean);
@@ -3904,50 +3907,54 @@ function buildAndCopyPrompt() {
   var prompt = buildAuditPrompt();
   if(!prompt) return;
 
-  // Show preview
-  var preview = document.getElementById('ai-prompt-preview');
-  preview.textContent = prompt.slice(0, 400) + (prompt.length > 400 ? '\n\n[…' + (prompt.length - 400) + ' more chars]' : '');
-  preview.style.display = 'block';
+  var diff = AK.lastDiff;
+  var out = document.getElementById('ai-output');
 
-  // Copy
+  function onCopied() {
+    out.className = 'has-content';
+    out.textContent =
+      '✓ Prompt copied to clipboard.\n\n' +
+      'What was included:\n' +
+      '• Project: ' + (function(){ var p = AK.projects.find(function(p){ return p.id==(diff.projId||AK.activeProject); }); return p?p.name+' '+p.version:'Unknown'; })() + '\n' +
+      '• Elements in B: ' + diff.elsB.length + '\n' +
+      '• Added: ' + diff.added.length + '  Removed: ' + diff.removed.length + '  Changed: ' + diff.changed.length + '\n' +
+      (diff.unexpected&&diff.unexpected.length ? '• ⚠ ' + diff.unexpected.length + ' irregular removals flagged\n' : '') +
+      '• Open log entries included: ' + AK.log.filter(function(e){ return e.projectId==(diff.projId||AK.activeProject)&&(e.cat==='bug'||e.cat==='ui'); }).length + '\n\n' +
+      'Paste into any Claude chat session to get your review.';
+    toast('✓ Prompt copied — paste into Claude');
+  }
+
   if(navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(prompt).then(function(){
-      toast('✓ Prompt copied — paste into any Claude chat');
-      document.getElementById('ai-output').textContent = '✓ Prompt copied to clipboard.\n\nPaste it into a new Claude chat session for your review.\n\n' +
-        'The prompt includes:\n• Project + version context\n• Full diff summary\n• All irregular/missing elements\n• Open bug log entries\n• Instructions for verdict + action list';
-      document.getElementById('ai-output').className = 'has-content';
-    }).catch(function(){ fallbackCopy(prompt); });
+    navigator.clipboard.writeText(prompt).then(onCopied).catch(function(){ fallbackCopy(prompt, onCopied); });
   } else {
-    fallbackCopy(prompt);
+    fallbackCopy(prompt, onCopied);
   }
 }
 
-function fallbackCopy(text) {
+function fallbackCopy(text, onSuccess) {
   var ta = document.createElement('textarea');
   ta.value = text;
-  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;width:1px;height:1px';
   document.body.appendChild(ta);
   ta.focus(); ta.select();
   try {
     var ok = document.execCommand('copy');
-    toast(ok ? '✓ Prompt copied — paste into Claude' : 'Select all and copy manually');
-    if(!ok) {
-      // Last resort — show in output area so they can manually copy
-      document.getElementById('ai-output').textContent = text;
-      document.getElementById('ai-output').className = 'has-content';
-    }
-  } catch(e) {
-    document.getElementById('ai-output').textContent = text;
-    document.getElementById('ai-output').className = 'has-content';
-    toast('Tap & hold the text below to copy');
-  }
+    document.body.removeChild(ta);
+    if(ok && onSuccess) { onSuccess(); return; }
+  } catch(e) {}
   document.body.removeChild(ta);
+  // Last resort — show in output so they can long-press copy
+  var out = document.getElementById('ai-output');
+  out.textContent = text;
+  out.className = 'has-content';
+  toast('Long-press the text to copy manually');
 }
 
-// ── Run Inline (requires HTTPS hosting)
+// ── Run Inline (only shown on HTTPS, file:// check is in initAiPanel)
 async function triggerAiSummary() {
-  var key = document.getElementById('api-key-input').value.trim() || localStorage.getItem('ak_api_key') || '';
-  if(!key) { toast('Enter your API key first — or use Copy Prompt instead'); return; }
+  var key = document.getElementById('api-key-input') ?
+    (document.getElementById('api-key-input').value.trim() || localStorage.getItem('ak_api_key') || '') : '';
+  if(!key) { toast('Enter your API key first'); return; }
   if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
 
   var prompt = buildAuditPrompt();
@@ -3955,26 +3962,17 @@ async function triggerAiSummary() {
 
   var out = document.getElementById('ai-output');
   out.className = 'loading';
-  out.textContent = 'Calling API… (requires HTTPS hosting)';
-
-  // Detect file:// origin and warn immediately
-  if(window.location.protocol === 'file:') {
-    out.textContent = 'Cannot call API from a local file.\n\nUse Copy Prompt instead — it copies the full structured prompt to your clipboard so you can paste it into Claude.\n\nTo enable Run Inline: host AuditKit on GitHub Pages (free) and open it via https://';
-    out.className = '';
-    return;
-  }
+  out.textContent = 'Calling Claude API…';
 
   try {
     var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] });
-    var resp = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01' });
+    var resp = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     if(resp.error) { out.textContent = 'API Error: ' + (resp.error.message||JSON.stringify(resp.error)); out.className = ''; return; }
     var text = (resp.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     out.textContent = text;
     out.className = 'has-content';
-    var copyBtn = document.getElementById('ai-copy-btn');
-    if(copyBtn) copyBtn.style.display = 'inline-flex';
   } catch(e) {
-    out.textContent = 'API call failed: ' + e.message + '\n\nUse Copy Prompt instead — it works from any browser or file context.';
+    out.textContent = 'API call failed: ' + e.message + '\n\nUse Copy Prompt instead — it works from any context.';
     out.className = '';
   }
 }
@@ -3994,7 +3992,7 @@ async function logAiSummary() {
 
   try {
     var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, messages:[{role:'user',content:prompt}] });
-    var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01' });
+    var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     if(text) {
       navigator.clipboard ? navigator.clipboard.writeText(text).then(function(){ toast('Summary copied to clipboard'); }) : alert(text);
