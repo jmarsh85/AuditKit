@@ -1872,21 +1872,28 @@
           </div>
         </div>
 
-        <!-- AI PANEL -->
+        <!-- AI / PROMPT PANEL -->
         <div id="ai-panel" class="card">
           <div class="card-header">
-            <span class="card-title">✦ AI Export Summary</span>
+            <span class="card-title">✦ Claude Handoff</span>
             <div class="row">
-              <button class="btn sm" id="ai-copy-btn" style="display:none" onclick="copyAiOutput()">⬆ Copy</button>
-              <button class="btn teal sm" onclick="triggerAiSummary()">Run</button>
+              <button class="btn teal sm" onclick="buildAndCopyPrompt()">⬆ Copy Prompt</button>
+              <button class="btn sm purple" onclick="triggerAiSummary()">▶ Run Inline</button>
             </div>
           </div>
-          <div id="ai-output">Run a gap analysis to generate an AI summary of expected vs. unexpected changes.</div>
-          <div class="ai-key-row">
+          <!-- Prompt preview area -->
+          <div id="ai-prompt-preview" style="display:none;padding:10px 14px;font-size:10px;color:var(--t3);background:var(--bg3);border-bottom:1px solid var(--border1);white-space:pre-wrap;max-height:120px;overflow-y:auto;line-height:1.5"></div>
+          <!-- Inline result (only shown when Run Inline succeeds) -->
+          <div id="ai-output">Tap <strong>Copy Prompt</strong> to copy a ready-to-paste Claude prompt with your full diff context.<br><br>Or tap <strong>Run Inline</strong> if AuditKit is hosted on HTTPS (GitHub Pages) — this requires an API key and won't work from a local file.</div>
+          <div class="ai-key-row" id="ai-key-row-wrap">
             <span class="ai-key-label">API Key:</span>
-            <input type="password" id="api-key-input" placeholder="sk-ant-…" style="flex:1;height:26px;font-size:10px"
+            <input type="password" id="api-key-input" placeholder="sk-ant-… (only needed for Run Inline)" style="flex:1;height:26px;font-size:10px"
               oninput="saveApiKey(this.value)">
             <button class="btn sm" onclick="loadApiKeyToInput()">Load</button>
+          </div>
+          <div style="padding:8px 14px 10px;font-size:10px;color:var(--t3);line-height:1.5">
+            <strong style="color:var(--t2)">Copy Prompt</strong> works everywhere — copies a structured prompt to your clipboard, then paste it into any Claude chat.<br>
+            <strong style="color:var(--t2)">Run Inline</strong> calls the API directly — requires hosting on HTTPS (not a local file).
           </div>
         </div>
       </div>
@@ -2351,6 +2358,14 @@ function copyAiOutput() {
   copyOrShare(text, 'auditkit-ai-summary.txt');
 }
 
+function resetAiPanel() {
+  var out = document.getElementById('ai-output');
+  out.textContent = 'Tap Copy Prompt to copy a ready-to-paste Claude prompt with your full diff context.\n\nOr tap Run Inline if AuditKit is hosted on HTTPS (GitHub Pages) — this requires an API key and won\'t work from a local file.';
+  out.className = '';
+  var preview = document.getElementById('ai-prompt-preview');
+  if(preview) preview.style.display = 'none';
+}
+
 // ════════════════════════════════════════════════════════════════
 //  GITHUB FETCH
 // ════════════════════════════════════════════════════════════════
@@ -2654,7 +2669,7 @@ function clearAudit() {
   document.getElementById('audit-results').classList.remove('visible');
   document.getElementById('audit-clear-btn').style.display = 'none';
   document.getElementById('diff-expected-card').style.display = 'none';
-  document.getElementById('ai-output').textContent = 'Run a gap analysis to generate an AI summary of expected vs. unexpected changes.';
+  resetAiPanel();
   AK.lastDiff = null;
   toast('Audit cleared');
 }
@@ -3825,65 +3840,129 @@ function loadApiKeyToInput() {
   toast(k ? 'Key loaded' : 'No key saved');
 }
 
-async function triggerAiSummary() {
-  var key = document.getElementById('api-key-input').value.trim() || localStorage.getItem('ak_api_key') || '';
-  if(!key) { toast('Enter your Anthropic API key first'); return; }
-  if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
-
+// ── Build the structured Claude prompt from current diff + registry state
+function buildAuditPrompt() {
+  if(!AK.lastDiff) return null;
   var diff = AK.lastDiff;
   var projId = diff.projId || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id == projId; });
-  var flaggedReg = AK.registry.filter(function(r){ return r.projectId == projId && r.status === 'flagged'; });
+  var missingReg = AK.registry.filter(function(r){ return r.projectId == projId && r.status === 'missing'; });
+  var issueReg = AK.registry.filter(function(r){ return r.projectId == projId && r.status === 'issue'; });
   var openBugs = AK.log.filter(function(e){ return e.projectId == projId && (e.cat === 'bug' || e.cat === 'ui'); });
 
-  var prompt = 'You are a PWA code review assistant helping a developer compare two versions of a single-file PWA (index.html).\n\n';
-  prompt += '## Context\n';
-  prompt += 'Project: ' + (proj ? proj.name + ' ' + proj.version : 'Unknown') + '\n';
-  prompt += 'Workflow: Version A is the stable GitHub version. Version B is the Claude-session working version.\n\n';
+  var p = 'You are a PWA code review assistant. A developer is comparing two versions of a single-file PWA (index.html).\n\n';
+  p += '## Project\n' + (proj ? proj.name + ' ' + proj.version : 'Unknown') + '\n';
+  p += 'Version A = stable GitHub version. Version B = Claude-session working version.\n\n';
 
-  prompt += '## Gap Analysis Results\n';
-  prompt += 'Total elements in B: ' + diff.elsB.length + '\n';
-  prompt += 'Added in B (new): ' + diff.added.length + '\n';
-  prompt += 'Removed from A (missing in B): ' + diff.removed.length + '\n';
-  prompt += 'Changed type: ' + diff.changed.length + '\n\n';
+  p += '## Gap Analysis Summary\n';
+  p += 'Elements in B: ' + diff.elsB.length + '  |  ';
+  p += 'Added: ' + diff.added.length + '  |  ';
+  p += 'Removed: ' + diff.removed.length + '  |  ';
+  p += 'Changed: ' + diff.changed.length + '  |  ';
+  p += 'Irregular: ' + (diff.unexpected||[]).length + '\n\n';
 
   if(diff.unexpected && diff.unexpected.length) {
-    prompt += '## ⚠ IRREGULAR REMOVALS — Elements that were verified OK but are now missing\n';
-    prompt += 'These are the highest priority — they may be silent omissions:\n';
-    prompt += diff.unexpected.map(function(e){ return '- ' + e.key + ' [' + e.type + ']' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
+    p += '## ⚠ IRREGULAR REMOVALS (was OK, now missing — highest priority)\n';
+    p += diff.unexpected.map(function(e){ return '- ' + e.key + ' [' + e.type + ']' + (e.label?': "'+e.label+'"':''); }).join('\n') + '\n\n';
   }
-
   if(diff.removed.length) {
-    prompt += '## All Removed Elements\n';
-    prompt += diff.removed.map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
+    p += '## Removed Elements\n';
+    p += diff.removed.map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label?': "'+e.label+'"':''); }).join('\n') + '\n\n';
   }
   if(diff.added.length) {
-    prompt += '## Added Elements\n';
-    prompt += diff.added.slice(0,30).map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label ? ': "' + e.label + '"' : ''); }).join('\n') + '\n\n';
+    p += '## Added Elements\n';
+    p += diff.added.slice(0,30).map(function(e){ return '- ' + e.key + ' (' + e.type + ')' + (e.label?': "'+e.label+'"':''); }).join('\n') + '\n\n';
   }
   if(diff.changed.length) {
-    prompt += '## Changed Elements\n';
-    prompt += diff.changed.map(function(c){ return '- ' + c.el.key + ': was ' + c.was.type + ' → now ' + c.el.type; }).join('\n') + '\n\n';
+    p += '## Changed Elements\n';
+    p += diff.changed.map(function(c){ return '- ' + c.el.key + ': was ' + c.was.type + ' → now ' + c.el.type; }).join('\n') + '\n\n';
   }
-  if(flaggedReg.length) {
-    prompt += '## Registry Flagged Items\n';
-    prompt += flaggedReg.map(function(r){ return '- ' + r.elId + (r.note ? ': ' + r.note : ''); }).join('\n') + '\n\n';
+  if(missingReg.length || issueReg.length) {
+    p += '## Registry Issues\n';
+    missingReg.forEach(function(r){ p += '- MISSING: ' + (r.name||r.elId) + (r.note?' ('+r.note+')':'') + '\n'; });
+    issueReg.forEach(function(r){ p += '- ISSUE: ' + (r.name||r.elId) + (r.note?' ('+r.note+')':'') + '\n'; });
+    p += '\n';
   }
   if(openBugs.length) {
-    prompt += '## Open Bug/UI Log Entries\n';
-    prompt += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
+    p += '## Open Bug/UI Log\n';
+    p += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
   }
 
-  prompt += '## Instructions\n';
-  prompt += 'Provide:\n1. VERDICT: Are the changes expected (normal development) or do any look like unintended omissions?\n';
-  prompt += '2. IRREGULAR ITEMS: Call out anything that looks like a silent bug — missing functions, forms, nav elements, etc.\n';
-  prompt += '3. SAFE TO PROMOTE: Based on this diff, is Version B safe to push to GitHub as the new stable? If not, what must be fixed first?\n';
-  prompt += '4. ACTION LIST: Prioritized, specific items to address before promoting.\n';
-  prompt += 'Be direct and concise. Flag anything that looks like a regression.';
+  p += '## Instructions\n';
+  p += '1. VERDICT: Are the changes expected or are there unintended omissions?\n';
+  p += '2. IRREGULAR ITEMS: Flag anything that looks like a silent regression — missing functions, forms, nav elements.\n';
+  p += '3. SAFE TO PROMOTE: Is Version B safe to push to GitHub? If not, what must be fixed first?\n';
+  p += '4. ACTION LIST: Prioritized, specific items to address.\n';
+  p += 'Be direct. Flag any regressions.';
+
+  return p;
+}
+
+// ── Copy prompt to clipboard — works everywhere including file://
+function buildAndCopyPrompt() {
+  if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
+  var prompt = buildAuditPrompt();
+  if(!prompt) return;
+
+  // Show preview
+  var preview = document.getElementById('ai-prompt-preview');
+  preview.textContent = prompt.slice(0, 400) + (prompt.length > 400 ? '\n\n[…' + (prompt.length - 400) + ' more chars]' : '');
+  preview.style.display = 'block';
+
+  // Copy
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(prompt).then(function(){
+      toast('✓ Prompt copied — paste into any Claude chat');
+      document.getElementById('ai-output').textContent = '✓ Prompt copied to clipboard.\n\nPaste it into a new Claude chat session for your review.\n\n' +
+        'The prompt includes:\n• Project + version context\n• Full diff summary\n• All irregular/missing elements\n• Open bug log entries\n• Instructions for verdict + action list';
+      document.getElementById('ai-output').className = 'has-content';
+    }).catch(function(){ fallbackCopy(prompt); });
+  } else {
+    fallbackCopy(prompt);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try {
+    var ok = document.execCommand('copy');
+    toast(ok ? '✓ Prompt copied — paste into Claude' : 'Select all and copy manually');
+    if(!ok) {
+      // Last resort — show in output area so they can manually copy
+      document.getElementById('ai-output').textContent = text;
+      document.getElementById('ai-output').className = 'has-content';
+    }
+  } catch(e) {
+    document.getElementById('ai-output').textContent = text;
+    document.getElementById('ai-output').className = 'has-content';
+    toast('Tap & hold the text below to copy');
+  }
+  document.body.removeChild(ta);
+}
+
+// ── Run Inline (requires HTTPS hosting)
+async function triggerAiSummary() {
+  var key = document.getElementById('api-key-input').value.trim() || localStorage.getItem('ak_api_key') || '';
+  if(!key) { toast('Enter your API key first — or use Copy Prompt instead'); return; }
+  if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
+
+  var prompt = buildAuditPrompt();
+  if(!prompt) return;
 
   var out = document.getElementById('ai-output');
   out.className = 'loading';
-  out.textContent = 'Analyzing gap report…';
+  out.textContent = 'Calling API… (requires HTTPS hosting)';
+
+  // Detect file:// origin and warn immediately
+  if(window.location.protocol === 'file:') {
+    out.textContent = 'Cannot call API from a local file.\n\nUse Copy Prompt instead — it copies the full structured prompt to your clipboard so you can paste it into Claude.\n\nTo enable Run Inline: host AuditKit on GitHub Pages (free) and open it via https://';
+    out.className = '';
+    return;
+  }
 
   try {
     var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] });
@@ -3892,11 +3971,10 @@ async function triggerAiSummary() {
     var text = (resp.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     out.textContent = text;
     out.className = 'has-content';
-    // Show copy button once we have content
     var copyBtn = document.getElementById('ai-copy-btn');
     if(copyBtn) copyBtn.style.display = 'inline-flex';
   } catch(e) {
-    out.textContent = 'Error: ' + e.message + '\n\nNote: AI features require Safari. The Claude in-app browser blocks outbound API calls.';
+    out.textContent = 'API call failed: ' + e.message + '\n\nUse Copy Prompt instead — it works from any browser or file context.';
     out.className = '';
   }
 }
