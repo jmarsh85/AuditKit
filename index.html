@@ -2944,7 +2944,14 @@ function syncRegistry() {
     }
   });
   AK.save();
+  // Ensure activeProject and reg-project-sel are set correctly before rendering
+  AK.activeProject = projId;
+  updateActiveProjectHeader();
   showScreen('registry');
+  // Force reg-project-sel to this project after populate
+  var sel = document.getElementById('reg-project-sel');
+  if(sel) sel.value = projId;
+  renderRegistryScreens();
   toast('Registry synced — ' + added + ' added, ' + flagged + ' flagged');
 }
 
@@ -2998,7 +3005,13 @@ function applyBaseline(projId) {
       added++;
     }
   });
-  AK.save(); closeModal(); renderRegistryScreens();
+  AK.save();
+  AK.activeProject = projId;
+  updateActiveProjectHeader();
+  closeModal();
+  var sel = document.getElementById('reg-project-sel');
+  if(sel) sel.value = projId;
+  renderRegistryScreens();
   toast('Added ' + added + ' elements for ' + (proj ? proj.name : 'project'));
 }
 
