@@ -737,28 +737,28 @@
   }
   #dk-toggle:hover { border-color: var(--teal-border); }
 
-  /* Inspector mode: no overlay — uses app border + slim banner instead */
-  #dk-inspect-overlay { display: none; } /* kept in DOM, unused */
+  #dk-inspect-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,229,204,0.06);
+    z-index: 9500;
+    pointer-events: none;
+  }
   #dk-inspect-banner {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0;
+    top: 60px; left: 50%;
+    transform: translateX(-50%);
     background: var(--teal);
     color: #000;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     font-weight: 700;
-    padding: 7px 16px;
+    padding: 6px 16px;
+    border-radius: 20px;
     z-index: 9600;
     pointer-events: none;
     letter-spacing: 0.06em;
-    text-align: center;
-    white-space: nowrap;
-  }
-  /* Teal border rings the whole app when inspect mode is active */
-  #app.dk-inspecting {
-    outline: 3px solid var(--teal);
-    outline-offset: -3px;
   }
 
   #dk-panel {
@@ -1798,6 +1798,12 @@
           </div>
         </div>
 
+        <!-- Baseline reminder — shown when no baseline saved for active project -->
+        <div id="baseline-notice" style="display:none;margin:0 16px 12px;padding:10px 12px;background:var(--amber-dim);border:1px solid rgba(245,166,35,0.3);border-radius:6px;font-size:11px;color:var(--amber);line-height:1.6">
+          <strong>⊙ No baseline saved for this project.</strong><br>
+          Load your current stable version into Slot A, then tap <strong>⊙ Save Baseline</strong> — it will auto-load next time so you always compare against a known-good version.
+        </div>
+
         <div class="card-body col">
           <div class="audit-panels">
             <!-- VERSION A -->
@@ -1869,6 +1875,20 @@
           </div>
           <div class="card-body">
             <div id="diff-list"></div>
+          </div>
+        </div>
+
+        <!-- CODE / FUNCTION DIFF -->
+        <div class="card" id="code-diff-card" style="display:none">
+          <div class="card-header" onclick="toggleCodeDiffPanel()" style="cursor:pointer;user-select:none;-webkit-user-select:none">
+            <span class="card-title">⟨/⟩ Code Changes</span>
+            <div class="row" style="gap:6px">
+              <span id="code-diff-summary-badge" class="badge unchecked"></span>
+              <span id="code-diff-chevron" style="color:var(--t3);font-size:11px">▼</span>
+            </div>
+          </div>
+          <div id="code-diff-body" style="display:none;padding:12px 14px">
+            <div id="code-diff-list"></div>
           </div>
         </div>
 
@@ -2489,8 +2509,14 @@ function exportDiff() {
 function auditSelectProject() {
   populateAuditSelects();
   var projId = parseInt(document.getElementById('audit-project-sel').value);
-  if(!projId) return;
+  if(!projId) {
+    document.getElementById('baseline-notice').style.display = 'none';
+    return;
+  }
   var proj = AK.projects.find(function(p){ return p.id === projId; });
+  // Show/hide baseline notice
+  var hasBaseline = !!localStorage.getItem('ak_baseline_html_' + projId);
+  document.getElementById('baseline-notice').style.display = hasBaseline ? 'none' : 'block';
   // Check if a baseline HTML is stored for this project
   var baselineKey = 'ak_baseline_html_' + projId;
   var baseline = localStorage.getItem(baselineKey);
@@ -2515,6 +2541,7 @@ function saveSlotAsBaseline() {
   if(!src) { toast('Load an HTML file into Slot A first'); return; }
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   localStorage.setItem('ak_baseline_html_' + projId, src);
+  document.getElementById('baseline-notice').style.display = 'none';
   toast('Baseline saved for ' + (proj ? proj.name : 'project') + ' — will auto-load next time');
 }
 
@@ -2671,6 +2698,7 @@ function clearAudit() {
   document.getElementById('audit-results').classList.remove('visible');
   document.getElementById('audit-clear-btn').style.display = 'none';
   document.getElementById('diff-expected-card').style.display = 'none';
+  document.getElementById('code-diff-card').style.display = 'none';
   resetAiPanel();
   AK.lastDiff = null;
   toast('Audit cleared');
@@ -2714,6 +2742,269 @@ function dropFile(slot, e) {
     toast('Loaded: ' + file.name);
   };
   reader.readAsText(file);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CODE / FUNCTION DIFF
+// ════════════════════════════════════════════════════════════════
+
+// Normalize a JS function body before fingerprinting:
+// strips comments and collapses whitespace so Claude's cosmetic
+// reformatting doesn't register as a real change.
+function normalizeFnBody(src) {
+  // Remove block comments
+  src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  // Remove line comments
+  src = src.replace(/\/\/[^\n]*/g, ' ');
+  // Collapse all whitespace runs to a single space
+  src = src.replace(/\s+/g, ' ').trim();
+  return src;
+}
+
+// Extract the names of other named functions called inside a body string.
+// Returns a sorted array of unique names — the "call signature" of the function.
+function extractCalls(body, knownNames) {
+  var calls = {};
+  var re = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
+  var m;
+  while((m = re.exec(body)) !== null) {
+    var name = m[1];
+    if(knownNames[name]) calls[name] = true;
+  }
+  return Object.keys(calls).sort();
+}
+
+// Extract all named JS functions from an HTML source string.
+// Returns a map: { funcName: { name, args, normHash, bodyLen, calls, line } }
+function parseJSFunctions(src) {
+  // Pull all inline <script> blocks (ignore external src= scripts)
+  var scriptContent = '';
+  var scriptRe = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
+  var m;
+  while((m = scriptRe.exec(src)) !== null) { scriptContent += m[1] + '\n'; }
+
+  // First pass: collect all function names so call-graph extraction is accurate
+  var allNames = {};
+  var nameRe = /(?:^|[\s;,({])(async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/gm;
+  while((m = nameRe.exec(scriptContent)) !== null) allNames[m[2]] = true;
+  // Also catch var/let/const assignments
+  var assignRe = /(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/gm;
+  while((m = assignRe.exec(scriptContent)) !== null) allNames[m[1]] = true;
+
+  // Build char→line index for approximate line numbers
+  var lines = scriptContent.split('\n');
+  var charLineMap = [];
+  var charCount = 0;
+  lines.forEach(function(l, i) {
+    for(var j = 0; j < l.length + 1; j++) charLineMap[charCount++] = i + 1;
+  });
+
+  var funcs = {};
+
+  // Helper: extract body starting at opening brace index, return the body string
+  function extractBody(startIdx) {
+    var depth = 0, i = startIdx;
+    while(i < scriptContent.length) {
+      var ch = scriptContent[i];
+      // Skip strings to avoid counting braces inside them
+      if(ch === '"' || ch === "'" || ch === '`') {
+        var q = ch; i++;
+        while(i < scriptContent.length && scriptContent[i] !== q) {
+          if(scriptContent[i] === '\\') i++; // escape
+          i++;
+        }
+      } else if(ch === '{') { depth++; }
+      else if(ch === '}') { depth--; if(depth === 0) return scriptContent.slice(startIdx, i + 1); }
+      i++;
+    }
+    return scriptContent.slice(startIdx);
+  }
+
+  // Match function declarations: function name(args) { }
+  var declRe = /(?:^|[\s;,({])(async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)\s*\{/gm;
+  while((m = declRe.exec(scriptContent)) !== null) {
+    var name = m[2];
+    var args = m[3].trim();
+    var braceStart = m.index + m[0].length - 1;
+    var body = extractBody(braceStart);
+    var norm = normalizeFnBody(body);
+    // Simple but stable hash of normalized body
+    var hash = norm.length;
+    for(var c = 0; c < Math.min(norm.length, 3000); c++) {
+      hash = (hash * 31 + norm.charCodeAt(c)) & 0x7fffffff;
+    }
+    funcs[name] = {
+      name: name, args: args,
+      bodyLen: body.length, normHash: hash,
+      calls: [], // filled in second pass
+      line: charLineMap[m.index] || 0,
+      rawBody: body
+    };
+  }
+
+  // Match var/let/const name = (async) function(...) { } or arrow functions
+  var arrowRe = /(?:^|[\s;,])(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?(?:function\s*\*?\s*\([^)]*\)|(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>)\s*\{/gm;
+  while((m = arrowRe.exec(scriptContent)) !== null) {
+    var name = m[1];
+    if(funcs[name]) continue;
+    var braceStart = m.index + m[0].length - 1;
+    var body = extractBody(braceStart);
+    var norm = normalizeFnBody(body);
+    var hash = norm.length;
+    for(var c = 0; c < Math.min(norm.length, 3000); c++) {
+      hash = (hash * 31 + norm.charCodeAt(c)) & 0x7fffffff;
+    }
+    funcs[name] = {
+      name: name, args: '…',
+      bodyLen: body.length, normHash: hash,
+      calls: [], line: charLineMap[m.index] || 0,
+      rawBody: body
+    };
+  }
+
+  // Second pass: extract call graph for each function
+  Object.keys(funcs).forEach(function(name) {
+    funcs[name].calls = extractCalls(funcs[name].rawBody, allNames);
+    delete funcs[name].rawBody; // don't keep full source in memory
+  });
+
+  return funcs;
+}
+
+// Compare function maps from A and B.
+// Returns { added, removed, modified, totalA, totalB }
+// "modified" includes both body changes and call-graph changes, labelled separately.
+function runCodeDiff(srcA, srcB) {
+  var funcsA = parseJSFunctions(srcA);
+  var funcsB = parseJSFunctions(srcB);
+
+  var added = [], removed = [], modified = [];
+
+  Object.keys(funcsB).forEach(function(name) {
+    if(!funcsA[name]) {
+      added.push(funcsB[name]);
+    } else {
+      var a = funcsA[name], b = funcsB[name];
+      var bodyChanged = a.normHash !== b.normHash;
+      var callsChanged = a.calls.join(',') !== b.calls.join(',');
+      if(bodyChanged || callsChanged) {
+        var sizeDelta = b.bodyLen - a.bodyLen;
+        // Classify: if body is identical after normalization but calls differ → wiring change
+        // If body changed but calls same → internal logic change
+        // If both → significant rewrite
+        var changeType = (!bodyChanged && callsChanged) ? 'wiring'
+          : (bodyChanged && !callsChanged) ? 'logic'
+          : 'rewrite';
+        modified.push({
+          name: name, args: b.args, line: b.line,
+          sizeDelta: sizeDelta,
+          changeType: changeType,
+          callsA: a.calls, callsB: b.calls,
+          bodyChanged: bodyChanged, callsChanged: callsChanged
+        });
+      }
+    }
+  });
+  Object.keys(funcsA).forEach(function(name) {
+    if(!funcsB[name]) removed.push(funcsA[name]);
+  });
+
+  return {
+    added: added, removed: removed, modified: modified,
+    totalA: Object.keys(funcsA).length,
+    totalB: Object.keys(funcsB).length
+  };
+}
+
+// Render the code diff card in the audit results area
+function renderCodeDiff(codeDiff) {
+  var card = document.getElementById('code-diff-card');
+  var badge = document.getElementById('code-diff-summary-badge');
+  var list = document.getElementById('code-diff-list');
+  if(!codeDiff) { if(card) card.style.display = 'none'; return; }
+
+  var total = codeDiff.added.length + codeDiff.removed.length + codeDiff.modified.length;
+  card.style.display = '';
+
+  if(total === 0) {
+    badge.textContent = 'No changes';
+    badge.className = 'badge ok';
+    list.innerHTML = '<div class="empty-state" style="padding:16px">' +
+      '<span class="empty-state-icon" style="font-size:18px">✓</span>' +
+      codeDiff.totalB + ' functions — no logic changes detected.</div>';
+    return;
+  }
+
+  badge.textContent = total + ' change' + (total > 1 ? 's' : '');
+  badge.className = 'badge flagged';
+
+  // Change type labels and colours
+  var typeInfo = {
+    logic:   { label: 'Logic change',   color: 'var(--amber)',  hint: 'Internal behaviour changed' },
+    wiring:  { label: 'Wiring change',  color: 'var(--purple)', hint: 'Calls different functions now' },
+    rewrite: { label: 'Rewritten',      color: 'var(--red)',    hint: 'Both logic and wiring changed' }
+  };
+
+  var html = '<div style="font-size:10px;color:var(--t3);padding:0 0 10px">' +
+    codeDiff.totalA + ' → ' + codeDiff.totalB + ' functions &nbsp;·&nbsp; ' +
+    (codeDiff.modified.length ? '<span style="color:var(--amber)">' + codeDiff.modified.length + ' modified</span> &nbsp;' : '') +
+    (codeDiff.added.length   ? '<span style="color:var(--green)">' + codeDiff.added.length   + ' added</span> &nbsp;' : '') +
+    (codeDiff.removed.length ? '<span style="color:var(--red)">'   + codeDiff.removed.length + ' removed</span>' : '') +
+  '</div>';
+
+  // Modified first — highest signal
+  codeDiff.modified.forEach(function(c) {
+    var ti = typeInfo[c.changeType] || typeInfo.logic;
+    var sizeTxt = c.sizeDelta === 0 ? 'same size'
+      : (c.sizeDelta > 0 ? '+' : '') + c.sizeDelta + ' chars';
+
+    // Show added/removed calls if wiring changed
+    var callDetail = '';
+    if(c.callsChanged) {
+      var gained = c.callsB.filter(function(n){ return c.callsA.indexOf(n) < 0; });
+      var lost   = c.callsA.filter(function(n){ return c.callsB.indexOf(n) < 0; });
+      if(gained.length) callDetail += ' +calls: ' + gained.join(', ');
+      if(lost.length)   callDetail += ' −calls: ' + lost.join(', ');
+    }
+
+    html += '<div class="diff-item changed">' +
+      '<div class="diff-icon">~</div>' +
+      '<div class="diff-content">' +
+        '<div class="diff-type" style="color:' + ti.color + '">' + ti.label + '</div>' +
+        '<div class="diff-desc">' + _esc(c.name) + '()</div>' +
+        '<div class="diff-detail">' + sizeTxt + (c.line ? ' · ~line ' + c.line : '') + _esc(callDetail) + '</div>' +
+      '</div></div>';
+  });
+
+  codeDiff.added.forEach(function(f) {
+    html += '<div class="diff-item added">' +
+      '<div class="diff-icon">+</div>' +
+      '<div class="diff-content">' +
+        '<div class="diff-type">New function</div>' +
+        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
+        '<div class="diff-detail">' + f.bodyLen + ' chars' + (f.line ? ' · ~line ' + f.line : '') + '</div>' +
+      '</div></div>';
+  });
+
+  codeDiff.removed.forEach(function(f) {
+    html += '<div class="diff-item removed">' +
+      '<div class="diff-icon">−</div>' +
+      '<div class="diff-content">' +
+        '<div class="diff-type">Removed function</div>' +
+        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
+        '<div class="diff-detail">was ' + f.bodyLen + ' chars</div>' +
+      '</div></div>';
+  });
+
+  list.innerHTML = html;
+}
+
+function toggleCodeDiffPanel() {
+  var body = document.getElementById('code-diff-body');
+  var chev = document.getElementById('code-diff-chevron');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  chev.textContent = open ? '▼' : '▲';
 }
 
 function parseHTML(src) {
@@ -2837,7 +3128,18 @@ function runAudit() {
   document.getElementById('audit-results').classList.add('visible');
   document.getElementById('audit-clear-btn').style.display = 'inline-flex';
   initAiPanel();
-  toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' differences, ' + unexpected.length + ' irregular');
+
+  // Code / function diff
+  var codeDiff = runCodeDiff(srcA, srcB);
+  AK.lastDiff.codeDiff = codeDiff;
+  renderCodeDiff(codeDiff);
+  var codeChanges = codeDiff.added.length + codeDiff.removed.length + codeDiff.modified.length;
+  if(codeChanges > 0) {
+    document.getElementById('code-diff-body').style.display = 'block';
+    document.getElementById('code-diff-chevron').textContent = '▲';
+  }
+
+  toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' element diff, ' + codeChanges + ' code changes');
 }
 
 // syncRegistry and showBaselineOptions — kept below with full implementations
@@ -3891,12 +4193,52 @@ function buildAuditPrompt() {
     p += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
   }
 
+  // Code diff section — the most important new signal for this workflow
+  var cd = diff.codeDiff;
+  if(cd) {
+    var codeTotal = cd.modified.length + cd.added.length + cd.removed.length;
+    p += '## Code / Function Analysis\n';
+    p += 'Total functions: A=' + cd.totalA + ' → B=' + cd.totalB + '\n';
+    if(codeTotal === 0) {
+      p += 'No function-level changes detected (after normalizing whitespace and comments).\n\n';
+    } else {
+      if(cd.modified.length) {
+        p += '\n### Modified Functions (' + cd.modified.length + ')\n';
+        p += 'These functions existed in both versions but their code changed.\n';
+        cd.modified.forEach(function(c) {
+          var typeDesc = c.changeType === 'wiring'  ? 'calls different functions now (behaviour wiring changed)'
+                       : c.changeType === 'logic'   ? 'internal logic changed (same function calls)'
+                       : 'significantly rewritten (logic AND function calls changed)';
+          p += '- ' + c.name + '(): ' + typeDesc;
+          if(c.sizeDelta !== 0) p += ', size ' + (c.sizeDelta > 0 ? '+' : '') + c.sizeDelta + ' chars';
+          if(c.callsChanged) {
+            var gained = c.callsB.filter(function(n){ return c.callsA.indexOf(n) < 0; });
+            var lost   = c.callsA.filter(function(n){ return c.callsB.indexOf(n) < 0; });
+            if(gained.length) p += ', now calls: ' + gained.join(', ');
+            if(lost.length)   p += ', no longer calls: ' + lost.join(', ');
+          }
+          p += '\n';
+        });
+        p += '\n';
+      }
+      if(cd.removed.length) {
+        p += '### Removed Functions (' + cd.removed.length + ')\n';
+        p += 'These functions exist in A but are gone from B — check if intentional:\n';
+        p += cd.removed.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
+      }
+      if(cd.added.length) {
+        p += '### New Functions (' + cd.added.length + ')\n';
+        p += cd.added.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
+      }
+    }
+  }
+
   p += '## Instructions\n';
   p += '1. VERDICT: Are the changes expected or are there unintended omissions?\n';
   p += '2. IRREGULAR ITEMS: Flag anything that looks like a silent regression — missing functions, forms, nav elements.\n';
   p += '3. SAFE TO PROMOTE: Is Version B safe to push to GitHub? If not, what must be fixed first?\n';
   p += '4. ACTION LIST: Prioritized, specific items to address.\n';
-  p += 'Be direct. Flag any regressions.';
+  p += 'Be direct. Flag any regressions. The developer is not a programmer — write in plain English, avoid jargon.';
 
   return p;
 }
@@ -3912,6 +4254,10 @@ function buildAndCopyPrompt() {
 
   function onCopied() {
     out.className = 'has-content';
+    var cd = diff.codeDiff;
+    var codeNote = cd
+      ? '• Code changes: ' + cd.modified.length + ' modified, ' + cd.added.length + ' added, ' + cd.removed.length + ' removed functions\n'
+      : '';
     out.textContent =
       '✓ Prompt copied to clipboard.\n\n' +
       'What was included:\n' +
@@ -3919,6 +4265,7 @@ function buildAndCopyPrompt() {
       '• Elements in B: ' + diff.elsB.length + '\n' +
       '• Added: ' + diff.added.length + '  Removed: ' + diff.removed.length + '  Changed: ' + diff.changed.length + '\n' +
       (diff.unexpected&&diff.unexpected.length ? '• ⚠ ' + diff.unexpected.length + ' irregular removals flagged\n' : '') +
+      codeNote +
       '• Open log entries included: ' + AK.log.filter(function(e){ return e.projectId==(diff.projId||AK.activeProject)&&(e.cat==='bug'||e.cat==='ui'); }).length + '\n\n' +
       'Paste into any Claude chat session to get your review.';
     toast('✓ Prompt copied — paste into Claude');
@@ -4186,96 +4533,67 @@ function dkRenderState() {
 // Inspector
 function dkToggleInspect() {
   DK.inspecting = !DK.inspecting;
+  var ov = document.getElementById('dk-inspect-overlay');
   var bn = document.getElementById('dk-inspect-banner');
-  var app = document.getElementById('app');
   var panel = document.getElementById('dk-panel');
 
   if(DK.inspecting) {
-    // Close the panel — user now taps anywhere in the app
     panel.classList.remove('open');
-    DK.panelOpen = false;
+    ov.style.display = 'block';
     bn.style.display = 'block';
-    app.classList.add('dk-inspecting');
-    // Listen on document so we catch real element taps with no overlay in the way
-    document.addEventListener('touchend', dkInspectTap, { capture: true, once: true });
-    document.addEventListener('click',    dkInspectTap, { capture: true, once: true });
+    ov.addEventListener('touchend', dkInspectTap);
+    ov.addEventListener('click', dkInspectTap);
   } else {
+    ov.style.display = 'none';
     bn.style.display = 'none';
-    app.classList.remove('dk-inspecting');
-    document.removeEventListener('touchend', dkInspectTap, true);
-    document.removeEventListener('click',    dkInspectTap, true);
+    ov.removeEventListener('touchend', dkInspectTap);
+    ov.removeEventListener('click', dkInspectTap);
   }
 }
 
 function dkInspectTap(e) {
   e.preventDefault();
-  e.stopPropagation();
-
-  // changedTouches on touchend; clientX/Y on click
   var x, y;
-  if(e.changedTouches && e.changedTouches[0]) {
-    x = e.changedTouches[0].clientX;
-    y = e.changedTouches[0].clientY;
-  } else {
-    x = e.clientX;
-    y = e.clientY;
-  }
+  if(e.touches && e.touches[0]) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+  else { x = e.clientX; y = e.clientY; }
 
-  // Turn off inspect mode visuals before hit-testing
-  var bn = document.getElementById('dk-inspect-banner');
-  var app = document.getElementById('app');
-  bn.style.display = 'none';
-  app.classList.remove('dk-inspecting');
-  DK.inspecting = false;
-
+  var ov = document.getElementById('dk-inspect-overlay');
+  ov.style.display = 'none';
   var target = document.elementFromPoint(x, y);
-  if(!target || target === document.body || target === document.documentElement) {
-    dkOpenPanel('log'); return;
-  }
+  ov.style.display = 'block';
 
-  // Skip DevKit's own elements
-  if(target.closest && target.closest('#dk-panel,#dk-toggle,#dk-version')) {
-    dkOpenPanel('log'); return;
-  }
+  if(!target) { dkToggleInspect(); return; }
 
-  // Walk up to find the best identifier (prefer #id, then .class)
-  var el = target, ref = null;
+  // Walk up for best identifier
+  var el = target;
+  var ref = null;
   for(var i = 0; i < 6; i++) {
     if(!el || el === document.body) break;
     if(el.id && !el.id.startsWith('dk-')) { ref = '#' + el.id; break; }
     if(el.className && typeof el.className === 'string' && el.className.trim()) {
       var cls = el.className.trim().split(/\s+/).filter(function(c){ return !c.startsWith('dk-'); })[0];
-      if(cls) { ref = '.' + cls; break; }
+      if(cls) { ref = '.' + cls; }
     }
     el = el.parentElement;
   }
   if(!ref) ref = target.tagName.toLowerCase();
-
-  var label = (target.textContent || '').trim().slice(0, 40)
-    || target.getAttribute('placeholder')
-    || target.getAttribute('aria-label')
-    || target.getAttribute('title')
-    || '';
+  var label = (target.textContent || '').trim().slice(0, 40) || target.getAttribute('placeholder') || '';
   DK.ref = ref + (label ? ' · "' + label + '"' : '');
 
-  // Flash the tapped element
-  var prev = target.style.outline;
+  // Flash highlight
   target.style.outline = '2px solid var(--teal)';
-  setTimeout(function(){ target.style.outline = prev; }, 700);
+  setTimeout(function(){ target.style.outline = ''; }, 800);
 
+  dkToggleInspect();
+  DK.inspecting = false;
   dkRenderRefChip();
-  dkOpenPanel('log');
-}
-
-// Open the DevKit panel on a specific tab
-function dkOpenPanel(tabName) {
   document.getElementById('dk-panel').classList.add('open');
   DK.panelOpen = true;
-  DK.tab = tabName;
-  var tabIndex = { log: 0, entries: 1, state: 2, map: 3 };
-  var idx = tabIndex[tabName] !== undefined ? tabIndex[tabName] : 0;
-  document.querySelectorAll('.dk-tab-btn').forEach(function(b,i){ b.classList.toggle('active', i===idx); });
-  document.querySelectorAll('.dk-tab-content').forEach(function(t,i){ t.classList.toggle('active', i===idx); });
+  dkTab({ target: document.querySelectorAll('.dk-tab-btn')[0] }, 'log');
+  // switch to log tab
+  DK.tab = 'log';
+  document.querySelectorAll('.dk-tab-btn').forEach(function(b,i){ b.classList.toggle('active', i===0); });
+  document.querySelectorAll('.dk-tab-content').forEach(function(t,i){ t.classList.toggle('active', i===0); });
 }
 
 function dkRenderRefChip() {
