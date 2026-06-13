@@ -1872,7 +1872,6 @@
           </div>
         </div>
 
-        <!-- CODE / FUNCTION DIFF -->
         <div class="card" id="code-diff-card" style="display:none">
           <div class="card-header" onclick="toggleCodeDiffPanel()" style="cursor:pointer;user-select:none;-webkit-user-select:none">
             <span class="card-title">⟨/⟩ Code Changes</span>
@@ -2296,7 +2295,21 @@ function setActiveProject(id) {
   renderProjects();
   updateActiveProjectHeader();
   populateAllProjectSelects();
-  ghLoadSettings(); // refresh GitHub panel from new active project's repo
+
+  // Prime per-project GitHub settings from project.repo if not yet saved
+  var p = AK.projects.find(function(x){ return x.id === id; });
+  if(p && p.repo) {
+    var key = 'ak_gh_repo_' + id;
+    if(!localStorage.getItem(key)) {
+      var normalized = ghNormalizeRepo(p.repo);
+      if(normalized) {
+        localStorage.setItem(key, normalized);
+        localStorage.setItem('ak_gh_branch_' + id, 'main');
+      }
+    }
+  }
+
+  ghLoadSettings();
   toast('Active project set');
 }
 
@@ -2393,29 +2406,42 @@ function toggleGhPanel() {
 }
 
 function ghLoadSettings() {
-  var repo = localStorage.getItem('ak_gh_repo') || '';
-  var branch = localStorage.getItem('ak_gh_branch') || 'main';
+  // Determine the currently selected project
+  var selEl = document.getElementById('audit-project-sel');
+  var projId = selEl ? (parseInt(selEl.value) || null) : null;
+  if(!projId) projId = AK.activeProject || null;
+
+  var repo = '', branch = 'main';
   var token = localStorage.getItem('ak_gh_token') || '';
 
-  // Always normalize repo to short form (strip any full URL prefix)
-  repo = ghNormalizeRepo(repo);
-  if(repo) localStorage.setItem('ak_gh_repo', repo);
+  if(projId) {
+    // Per-project settings take full priority
+    repo   = localStorage.getItem('ak_gh_repo_'   + projId) || '';
+    branch = localStorage.getItem('ak_gh_branch_' + projId) || 'main';
 
-  document.getElementById('gh-repo').value = repo;
-  document.getElementById('gh-branch').value = branch;
-  if(token) document.getElementById('gh-token').value = '••••••••';
-
-  // Pre-fill from active project repo URL if no repo saved yet
-  if(!repo && AK.activeProject) {
-    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
-    if(p && p.repo) {
-      var normalized = ghNormalizeRepo(p.repo);
-      if(normalized) {
-        document.getElementById('gh-repo').value = normalized;
-        localStorage.setItem('ak_gh_repo', normalized);
+    // If no per-project repo saved yet, try the project's repo URL field
+    if(!repo) {
+      var p = AK.projects.find(function(x){ return x.id === projId; });
+      if(p && p.repo) {
+        repo = ghNormalizeRepo(p.repo);
+        if(repo) {
+          // Persist so it's ready next time without re-deriving
+          localStorage.setItem('ak_gh_repo_'   + projId, repo);
+          localStorage.setItem('ak_gh_branch_' + projId, branch);
+        }
       }
     }
   }
+
+  // Fall back to global only when no project is selected
+  if(!repo && !projId) {
+    repo   = ghNormalizeRepo(localStorage.getItem('ak_gh_repo')   || '');
+    branch = localStorage.getItem('ak_gh_branch') || 'main';
+  }
+
+  document.getElementById('gh-repo').value   = repo;
+  document.getElementById('gh-branch').value = branch;
+  if(token) document.getElementById('gh-token').value = '••••••••';
 }
 
 // Strip any URL prefix, return just "owner/repo"
@@ -2490,17 +2516,17 @@ function exportDiff() {
       changed: d.changed.length,
       irregular: (d.unexpected||[]).length,
       functions_modified: d.codeDiff ? d.codeDiff.modified.length : 0,
-      functions_added: d.codeDiff ? d.codeDiff.added.length : 0,
-      functions_removed: d.codeDiff ? d.codeDiff.removed.length : 0
+      functions_added:    d.codeDiff ? d.codeDiff.added.length    : 0,
+      functions_removed:  d.codeDiff ? d.codeDiff.removed.length  : 0
     },
     irregular_removals: (d.unexpected||[]).map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
-    added: d.added.map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
+    added:   d.added.map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
     removed: d.removed.map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
     changed: d.changed.map(function(c){ return { id: c.el.key, from: c.was.type, to: c.el.type }; }),
     code_changes: d.codeDiff ? {
       functions_modified: d.codeDiff.modified.map(function(f){ return f.name; }),
-      functions_added: d.codeDiff.added.map(function(f){ return f.name; }),
-      functions_removed: d.codeDiff.removed.map(function(f){ return f.name; })
+      functions_added:    d.codeDiff.added.map(function(f){ return f.name; }),
+      functions_removed:  d.codeDiff.removed.map(function(f){ return f.name; })
     } : null
   };
 
@@ -2512,6 +2538,11 @@ function auditSelectProject() {
   populateAuditSelects();
   var projId = parseInt(document.getElementById('audit-project-sel').value);
   if(!projId) return;
+
+  // Sync active project and refresh GitHub fields immediately
+  AK.activeProject = projId;
+  ghLoadSettings();
+
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   // Check if a baseline HTML is stored for this project
   var baselineKey = 'ak_baseline_html_' + projId;
@@ -2541,21 +2572,33 @@ function saveSlotAsBaseline() {
 }
 
 function saveGhSettings() {
-  var repo = ghNormalizeRepo(document.getElementById('gh-repo').value);
+  var repo   = ghNormalizeRepo(document.getElementById('gh-repo').value);
   var branch = document.getElementById('gh-branch').value.trim() || 'main';
-  var token = document.getElementById('gh-token').value.trim();
+  var token  = document.getElementById('gh-token').value.trim();
 
   document.getElementById('gh-repo').value = repo; // show normalized form
-  localStorage.setItem('ak_gh_repo', repo);
-  localStorage.setItem('ak_gh_branch', branch);
-  if(token && !token.startsWith('•')) localStorage.setItem('ak_gh_token', token);
-  toast('GitHub settings saved');
 
-  // Backfill active project repo if not set
-  if(AK.activeProject && repo) {
-    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
+  if(token && !token.startsWith('•')) localStorage.setItem('ak_gh_token', token);
+
+  // Determine current project
+  var selEl  = document.getElementById('audit-project-sel');
+  var projId = selEl ? (parseInt(selEl.value) || null) : null;
+  if(!projId) projId = AK.activeProject || null;
+
+  if(projId && repo) {
+    // Save per-project — this is the primary store
+    localStorage.setItem('ak_gh_repo_'   + projId, repo);
+    localStorage.setItem('ak_gh_branch_' + projId, branch);
+    // Also backfill the project.repo URL field if it's empty
+    var p = AK.projects.find(function(x){ return x.id === projId; });
     if(p && !p.repo) { p.repo = 'https://github.com/' + repo; AK.save(); }
   }
+
+  // Always write global as well so the GitHub tab works without a project selected
+  localStorage.setItem('ak_gh_repo',   repo);
+  localStorage.setItem('ak_gh_branch', branch);
+
+  toast('GitHub settings saved');
 }
 
 async function ghFetchFiles() {
@@ -2740,12 +2783,9 @@ function dropFile(slot, e) {
 }
 
 // ════════════════════════════════════════════════════════════════
-//  CODE / FUNCTION DIFF  (proven algorithm — see session notes)
+//  CODE / FUNCTION DIFF
 // ════════════════════════════════════════════════════════════════
 
-// Normalize a text region for hashing:
-// strips comments and string CONTENTS (replaces with placeholders),
-// then collapses whitespace — so cosmetic reformatting is invisible.
 function normFnText(s) {
   return s
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -2762,11 +2802,9 @@ function _fnHash(str) {
   return h;
 }
 
-// Find all named function declarations (any indent) + top-level arrow/var assignments.
-// Returns array of { name, indent, lineIdx }.
 function _findFnDecls(script) {
   var lines = script.split('\n');
-  var declRe  = /^(\s*)(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
+  var declRe   = /^(\s*)(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
   var assignRe = /^()(var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?(?:function|\(|[a-zA-Z_$])/;
   var funcs = [];
   lines.forEach(function(line, idx) {
@@ -2778,91 +2816,56 @@ function _findFnDecls(script) {
   return funcs;
 }
 
-// Extract and hash just the function body (not its neighbors).
-// Uses simple brace-depth tracking on the raw text lines (fast, no full parser needed).
-// Stops when:
-//   a) brace depth returns to 0 (actual end of function)
-//   b) next sibling function declaration found at same/lesser indent (safety boundary)
-//   c) a top-level var/let/const line appears after a top-level function
 function _hashFnBody(lines, decl) {
-  var chunk = [];
-  var braceDepth = 0;
-  var bodyStarted = false;
-
+  var chunk = [], braceDepth = 0, bodyStarted = false;
   for(var i = decl.lineIdx; i < lines.length; i++) {
     var line = lines[i];
-
-    // Safety: stop at next sibling/parent function declaration
     if(i > decl.lineIdx) {
       var m = /^(\s*)(?:async\s+)?function\s+([a-zA-Z_$])/.exec(line);
       if(m && m[1].length <= decl.indent) break;
-      // Stop at top-level var/let/const after a top-level function
       if(decl.indent === 0 && /^(?:var|let|const)\s+/.test(line)) break;
     }
-
     chunk.push(line);
-
-    // Count braces in this line (ignoring strings — good enough at line level)
     for(var c = 0; c < line.length; c++) {
       if(line[c] === '{') { braceDepth++; bodyStarted = true; }
-      else if(line[c] === '}') { braceDepth--; }
+      else if(line[c] === '}') braceDepth--;
     }
-    // Once we've entered the body and returned to depth 0, we're done
     if(bodyStarted && braceDepth <= 0 && chunk.length > 1) break;
   }
-
   return _fnHash(normFnText(chunk.join('\n')));
 }
 
-// Build name → hash map for all functions in a script string.
 function _buildFnMap(script) {
   var lines = script.split('\n');
   var decls = _findFnDecls(script);
   var map = {};
-  decls.forEach(function(d) {
-    map[d.name] = { hash: _hashFnBody(lines, d), indent: d.indent };
-  });
+  decls.forEach(function(d) { map[d.name] = _hashFnBody(lines, d); });
   return map;
 }
 
-// Extract all <script> blocks from HTML source (ignoring external src= scripts).
 function _extractScripts(src) {
-  var out = '';
-  var re = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
-  var m;
+  var out = '', re = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi, m;
   while((m = re.exec(src)) !== null) out += m[1] + '\n';
   return out;
 }
 
-// Compare two HTML files at the function level.
-// Returns { modified, added, removed, totalA, totalB }.
 function runCodeDiff(srcA, srcB) {
-  var scriptA = _extractScripts(srcA);
-  var scriptB = _extractScripts(srcB);
-  var mapA = _buildFnMap(scriptA);
-  var mapB = _buildFnMap(scriptB);
-
+  var mapA = _buildFnMap(_extractScripts(srcA));
+  var mapB = _buildFnMap(_extractScripts(srcB));
   var modified = [], added = [], removed = [];
-
   Object.keys(mapB).forEach(function(name) {
     if(!mapA[name]) added.push({ name: name });
-    else if(mapA[name].hash !== mapB[name].hash) modified.push({ name: name });
+    else if(mapA[name] !== mapB[name]) modified.push({ name: name });
   });
-  Object.keys(mapA).forEach(function(name) {
-    if(!mapB[name]) removed.push({ name: name });
-  });
-
-  return {
-    modified: modified, added: added, removed: removed,
-    totalA: Object.keys(mapA).length, totalB: Object.keys(mapB).length
-  };
+  Object.keys(mapA).forEach(function(name) { if(!mapB[name]) removed.push({ name: name }); });
+  return { modified: modified, added: added, removed: removed,
+           totalA: Object.keys(mapA).length, totalB: Object.keys(mapB).length };
 }
 
-// Render the Code Changes card in the audit results section.
 function renderCodeDiff(codeDiff) {
-  var card = document.getElementById('code-diff-card');
+  var card  = document.getElementById('code-diff-card');
   var badge = document.getElementById('code-diff-summary-badge');
-  var list = document.getElementById('code-diff-list');
+  var list  = document.getElementById('code-diff-list');
   if(!codeDiff || !card) return;
 
   var total = codeDiff.modified.length + codeDiff.added.length + codeDiff.removed.length;
@@ -2881,35 +2884,26 @@ function renderCodeDiff(codeDiff) {
   badge.className = 'badge flagged';
 
   var html = '<div style="font-size:10px;color:var(--t3);padding:0 0 10px">' +
-    'A: ' + codeDiff.totalA + ' functions → B: ' + codeDiff.totalB + ' &nbsp;·&nbsp; ' +
+    'A: ' + codeDiff.totalA + ' → B: ' + codeDiff.totalB + ' functions &nbsp;·&nbsp; ' +
     (codeDiff.modified.length ? '<span style="color:var(--amber)">' + codeDiff.modified.length + ' modified</span> &nbsp;' : '') +
     (codeDiff.added.length   ? '<span style="color:var(--green)">'  + codeDiff.added.length   + ' added</span> &nbsp;'    : '') +
     (codeDiff.removed.length ? '<span style="color:var(--red)">'    + codeDiff.removed.length + ' removed</span>'         : '') +
   '</div>';
 
   codeDiff.modified.forEach(function(f) {
-    html += '<div class="diff-item changed">' +
-      '<div class="diff-icon">~</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type" style="color:var(--amber)">Modified</div>' +
-        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
-      '</div></div>';
+    html += '<div class="diff-item changed"><div class="diff-icon">~</div><div class="diff-content">' +
+      '<div class="diff-type" style="color:var(--amber)">Modified</div>' +
+      '<div class="diff-desc">' + _esc(f.name) + '()</div></div></div>';
   });
   codeDiff.added.forEach(function(f) {
-    html += '<div class="diff-item added">' +
-      '<div class="diff-icon">+</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type">New function</div>' +
-        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
-      '</div></div>';
+    html += '<div class="diff-item added"><div class="diff-icon">+</div><div class="diff-content">' +
+      '<div class="diff-type">New function</div>' +
+      '<div class="diff-desc">' + _esc(f.name) + '()</div></div></div>';
   });
   codeDiff.removed.forEach(function(f) {
-    html += '<div class="diff-item removed">' +
-      '<div class="diff-icon">−</div>' +
-      '<div class="diff-content">' +
-        '<div class="diff-type">Removed function</div>' +
-        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
-      '</div></div>';
+    html += '<div class="diff-item removed"><div class="diff-icon">−</div><div class="diff-content">' +
+      '<div class="diff-type">Removed function</div>' +
+      '<div class="diff-desc">' + _esc(f.name) + '()</div></div></div>';
   });
 
   list.innerHTML = html;
@@ -3045,7 +3039,6 @@ function runAudit() {
   document.getElementById('audit-clear-btn').style.display = 'inline-flex';
   initAiPanel();
 
-  // Code / function diff (proven algorithm — no false positives on template-literal-heavy files)
   var codeDiff = runCodeDiff(srcA, srcB);
   AK.lastDiff.codeDiff = codeDiff;
   renderCodeDiff(codeDiff);
@@ -4154,10 +4147,6 @@ function buildAndCopyPrompt() {
 
   function onCopied() {
     out.className = 'has-content';
-    var cd = diff.codeDiff;
-    var codeNote = cd && (cd.modified.length + cd.added.length + cd.removed.length > 0)
-      ? '• Code changes: ' + cd.modified.length + ' modified, ' + cd.added.length + ' added, ' + cd.removed.length + ' removed\n'
-      : '';
     out.textContent =
       '✓ Prompt copied to clipboard.\n\n' +
       'What was included:\n' +
@@ -4165,7 +4154,6 @@ function buildAndCopyPrompt() {
       '• Elements in B: ' + diff.elsB.length + '\n' +
       '• Added: ' + diff.added.length + '  Removed: ' + diff.removed.length + '  Changed: ' + diff.changed.length + '\n' +
       (diff.unexpected&&diff.unexpected.length ? '• ⚠ ' + diff.unexpected.length + ' irregular removals flagged\n' : '') +
-      codeNote +
       '• Open log entries included: ' + AK.log.filter(function(e){ return e.projectId==(diff.projId||AK.activeProject)&&(e.cat==='bug'||e.cat==='ui'); }).length + '\n\n' +
       'Paste into any Claude chat session to get your review.';
     toast('✓ Prompt copied — paste into Claude');
