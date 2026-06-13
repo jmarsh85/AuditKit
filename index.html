@@ -120,14 +120,13 @@
   }
 
   #active-project-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--t1);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--teal);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 140px;
-    letter-spacing: 0.01em;
   }
 
   #header-actions {
@@ -738,28 +737,28 @@
   }
   #dk-toggle:hover { border-color: var(--teal-border); }
 
-  #dk-inspect-overlay {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,229,204,0.06);
-    z-index: 9500;
-    pointer-events: none;
-  }
+  /* Inspector mode: no overlay — uses app border + slim banner instead */
+  #dk-inspect-overlay { display: none; } /* kept in DOM, unused */
   #dk-inspect-banner {
     display: none;
     position: fixed;
-    top: 60px; left: 50%;
-    transform: translateX(-50%);
+    top: 0; left: 0; right: 0;
     background: var(--teal);
     color: #000;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     font-weight: 700;
-    padding: 6px 16px;
-    border-radius: 20px;
+    padding: 7px 16px;
     z-index: 9600;
     pointer-events: none;
     letter-spacing: 0.06em;
+    text-align: center;
+    white-space: nowrap;
+  }
+  /* Teal border rings the whole app when inspect mode is active */
+  #app.dk-inspecting {
+    outline: 3px solid var(--teal);
+    outline-offset: -3px;
   }
 
   #dk-panel {
@@ -1566,7 +1565,7 @@
     #app-title { font-size: 15px; }
     #ak-version-header { display: none; }
     #active-project-label { display: none; }
-    #active-project-name { font-size: 12px; max-width: 100px; }
+    #active-project-name { font-size: 10px; max-width: 100px; }
     #header-actions { display: none; }
     #header-actions-mobile { display: flex; }
 
@@ -1653,7 +1652,7 @@
     .screen { min-height: calc(100vh - 82px); padding: 8px; gap: 8px; }
     #header { height: 44px; padding: 0 10px; gap: 6px; }
     #app-title { font-size: 14px; }
-    #active-project-name { max-width: 70px; font-size: 11px; }
+    #active-project-name { max-width: 70px; font-size: 9px; }
     .hdr-icon-btn { width: 30px; height: 30px; font-size: 14px; }
     #nav { height: 40px; padding: 0 4px; gap: 2px; }
     .nav-tab { font-size: 9px; height: 30px; }
@@ -1813,10 +1812,7 @@
                   ondragover="event.preventDefault()" ondrop="dropFile('a',event)">
                   Drop .html or tap to browse
                 </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div id="slot-a-info" class="slot-info" style="display:none;flex:1"></div>
-                  <button id="slot-a-refetch-btn" class="btn sm" onclick="refetchSlot('a')" style="display:none;flex-shrink:0">⟳</button>
-                </div>
+                <div id="slot-a-info" class="slot-info" style="display:none"></div>
                 <!-- textarea hidden after load to avoid rendering overhead -->
                 <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…" style="display:none"></textarea>
                 <button class="btn sm" id="slot-a-paste-btn" onclick="toggleSlotPaste('a')" style="margin-top:6px">✎ Paste instead</button>
@@ -1834,10 +1830,7 @@
                   ondragover="event.preventDefault()" ondrop="dropFile('b',event)">
                   Drop .html or tap to browse
                 </div>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <div id="slot-b-info" class="slot-info" style="display:none;flex:1"></div>
-                  <button id="slot-b-refetch-btn" class="btn sm" onclick="refetchSlot('b')" style="display:none;flex-shrink:0">⟳</button>
-                </div>
+                <div id="slot-b-info" class="slot-info" style="display:none"></div>
                 <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…" style="display:none"></textarea>
                 <button class="btn sm" id="slot-b-paste-btn" onclick="toggleSlotPaste('b')" style="margin-top:6px">✎ Paste instead</button>
               </div>
@@ -1891,7 +1884,6 @@
             <span class="ai-key-label">API Key:</span>
             <input type="password" id="api-key-input" placeholder="sk-ant-…" style="flex:1;height:26px;font-size:10px" oninput="saveApiKey(this.value)">
             <button class="btn sm" onclick="loadApiKeyToInput()">Load</button>
-            <button class="btn sm" style="background:var(--teal);color:#000" onclick="testApiKey()" title="Ping API to confirm key + connectivity">Test</button>
           </div>
         </div>
       </div>
@@ -1917,7 +1909,6 @@
             <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
             <button class="btn sm purple" onclick="triggerAiNamingPass()" style="flex-shrink:0">✦ AI Name Pass</button>
             <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
-            <button class="btn sm red" onclick="confirmClearRegistry()" style="flex-shrink:0">⚠ Clear Registry</button>
             <button class="btn sm" onclick="toggleRegView()" id="reg-view-btn" style="flex-shrink:0">☰ List View</button>
           </div>
         </div>
@@ -2154,7 +2145,7 @@ function showScreen(name) {
   var screens = { projects: 0, audit: 1, registry: 2, log: 3 };
   document.getElementById('screen-' + name).classList.add('active');
   document.querySelectorAll('.nav-tab')[screens[name]].classList.add('active');
-  if(name === 'registry') { populateAllProjectSelects(); renderRegistry(); }
+  if(name === 'registry') renderRegistry();
   if(name === 'log') renderLogEntries();
   if(name === 'projects') renderProjects();
   if(name === 'audit') { populateAuditSelects(); initAiPanel(); }
@@ -2338,7 +2329,6 @@ function populateAllProjectSelects() {
   var opts3 = '<option value="">All projects…</option>' +
     AK.projects.map(function(p){ return '<option value="' + p.id + '">' + _esc(p.name) + '</option>'; }).join('');
   document.getElementById('reg-project-sel').innerHTML = opts3;
-  if(AK.activeProject) document.getElementById('reg-project-sel').value = AK.activeProject;
 }
 
 function populateAuditSelects() {
@@ -2389,28 +2379,29 @@ function toggleGhPanel() {
 }
 
 function ghLoadSettings() {
-  // Always load per-project settings first, fall back to global
-  var projId = AK.activeProject;
-  var proj = projId ? AK.projects.find(function(x){ return x.id === projId; }) : null;
+  var repo = localStorage.getItem('ak_gh_repo') || '';
+  var branch = localStorage.getItem('ak_gh_branch') || 'main';
+  var token = localStorage.getItem('ak_gh_token') || '';
 
-  // Per-project keys
-  var projRepoKey    = projId ? 'ak_gh_repo_'   + projId : null;
-  var projBranchKey  = projId ? 'ak_gh_branch_' + projId : null;
-
-  var repo   = (projRepoKey   && localStorage.getItem(projRepoKey))   || localStorage.getItem('ak_gh_repo')   || '';
-  var branch = (projBranchKey && localStorage.getItem(projBranchKey)) || localStorage.getItem('ak_gh_branch') || 'main';
-  var token  = localStorage.getItem('ak_gh_token') || '';
-
-  // If still no repo, derive from project's stored repo URL
-  if(!repo && proj && proj.repo) {
-    repo = ghNormalizeRepo(proj.repo);
-  }
-
+  // Always normalize repo to short form (strip any full URL prefix)
   repo = ghNormalizeRepo(repo);
+  if(repo) localStorage.setItem('ak_gh_repo', repo);
 
   document.getElementById('gh-repo').value = repo;
   document.getElementById('gh-branch').value = branch;
   if(token) document.getElementById('gh-token').value = '••••••••';
+
+  // Pre-fill from active project repo URL if no repo saved yet
+  if(!repo && AK.activeProject) {
+    var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
+    if(p && p.repo) {
+      var normalized = ghNormalizeRepo(p.repo);
+      if(normalized) {
+        document.getElementById('gh-repo').value = normalized;
+        localStorage.setItem('ak_gh_repo', normalized);
+      }
+    }
+  }
 }
 
 // Strip any URL prefix, return just "owner/repo"
@@ -2448,47 +2439,22 @@ function xhrGet(url, headers) {
   });
 }
 
-// POST for Anthropic API — uses fetch with CORS mode, falls back to XHR
-async function xhrPost(url, body, extraHeaders) {
-  // Try fetch first (better CORS handling in modern Safari/Chrome)
-  try {
-    var controller = new AbortController();
-    var timer = setTimeout(function(){ controller.abort(); }, 30000);
-    var resp = await fetch(url, {
-      method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, extraHeaders),
-      body: body,
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    var text = await resp.text();
-    try { return JSON.parse(text); }
-    catch(e) { throw new Error('JSON parse error: ' + text.slice(0,120)); }
-  } catch(fetchErr) {
-    // If fetch fails with a network/CORS error, fall back to XHR
-    if(fetchErr.name === 'AbortError') throw new Error('Request timed out after 30s');
-    // XHR fallback
-    return new Promise(function(resolve, reject) {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', url, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      Object.keys(extraHeaders || {}).forEach(function(k){ xhr.setRequestHeader(k, extraHeaders[k]); });
-      xhr.onload = function() {
-        try { resolve(JSON.parse(xhr.responseText)); }
-        catch(e) { reject(new Error('JSON parse error: ' + xhr.responseText.slice(0,120))); }
-      };
-      xhr.onerror = function(){
-        reject(new Error(
-          'Network blocked. Verify: (1) API key is correct, (2) you are on HTTPS, ' +
-          '(3) not using an ad blocker or VPN that blocks api.anthropic.com. ' +
-          'Fetch error was: ' + fetchErr.message
-        ));
-      };
-      xhr.ontimeout = function(){ reject(new Error('Request timed out')); };
-      xhr.timeout = 30000;
-      xhr.send(body);
-    });
-  }
+// XHR POST for Anthropic API — returns parsed JSON directly
+function xhrPost(url, body, extraHeaders) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    Object.keys(extraHeaders || {}).forEach(function(k){ xhr.setRequestHeader(k, extraHeaders[k]); });
+    xhr.onload = function() {
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch(e) { reject(new Error('JSON parse error: ' + xhr.responseText.slice(0,100))); }
+    };
+    xhr.onerror = function(){ reject(new Error('Network error — are you in Safari?')); };
+    xhr.ontimeout = function(){ reject(new Error('Request timed out')); };
+    xhr.timeout = 30000;
+    xhr.send(body);
+  });
 }
 
 // ── Export gap analysis diff as structured JSON/text
@@ -2525,9 +2491,6 @@ function auditSelectProject() {
   var projId = parseInt(document.getElementById('audit-project-sel').value);
   if(!projId) return;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
-  // Reload GitHub fields for this project
-  AK.activeProject = projId;
-  ghLoadSettings();
   // Check if a baseline HTML is stored for this project
   var baselineKey = 'ak_baseline_html_' + projId;
   var baseline = localStorage.getItem(baselineKey);
@@ -2560,22 +2523,16 @@ function saveGhSettings() {
   var branch = document.getElementById('gh-branch').value.trim() || 'main';
   var token = document.getElementById('gh-token').value.trim();
 
-  document.getElementById('gh-repo').value = repo;
-
-  // Save globally and per-project
+  document.getElementById('gh-repo').value = repo; // show normalized form
   localStorage.setItem('ak_gh_repo', repo);
   localStorage.setItem('ak_gh_branch', branch);
-  if(AK.activeProject) {
-    localStorage.setItem('ak_gh_repo_'   + AK.activeProject, repo);
-    localStorage.setItem('ak_gh_branch_' + AK.activeProject, branch);
-  }
   if(token && !token.startsWith('•')) localStorage.setItem('ak_gh_token', token);
   toast('GitHub settings saved');
 
-  // Backfill active project repo URL if not set
+  // Backfill active project repo if not set
   if(AK.activeProject && repo) {
     var p = AK.projects.find(function(x){ return x.id === AK.activeProject; });
-    if(p) { p.repo = 'https://github.com/' + repo; AK.save(); }
+    if(p && !p.repo) { p.repo = 'https://github.com/' + repo; AK.save(); }
   }
 }
 
@@ -2684,33 +2641,12 @@ async function ghLoadIntoSlot(slot, path) {
 
     statusEl.textContent = '✓ ' + filename + ' → Slot ' + slot.toUpperCase();
     toast('Loaded into Version ' + slot.toUpperCase() + ': ' + filename);
-    // Save for re-fetch
-    localStorage.setItem('ak_last_gh_path_' + slot, path);
-    localStorage.setItem('ak_last_gh_repo_' + slot, repo);
-    localStorage.setItem('ak_last_gh_branch_' + slot, branch);
-    var refetchBtn = document.getElementById('slot-' + slot + '-refetch-btn');
-    if(refetchBtn) refetchBtn.style.display = '';
 
   } catch(e) {
     statusEl.textContent = 'Failed: ' + e.message;
     toast('Could not load: ' + e.message);
   }
 }
-// ── Re-fetch the last GitHub file loaded into a slot
-async function refetchSlot(slot) {
-  var path   = localStorage.getItem('ak_last_gh_path_'   + slot);
-  var repo   = localStorage.getItem('ak_last_gh_repo_'   + slot);
-  var branch = localStorage.getItem('ak_last_gh_branch_' + slot);
-  if(!path || !repo) { toast('No GitHub file recorded for Slot ' + slot.toUpperCase()); return; }
-
-  // Temporarily restore repo/branch fields so ghLoadIntoSlot reads them correctly
-  document.getElementById('gh-repo').value   = repo;
-  document.getElementById('gh-branch').value = branch;
-
-  toast('Re-fetching ' + path.split('/').pop() + '…');
-  await ghLoadIntoSlot(slot, path);
-}
-
 // ── Slot paste toggle (hide/show textarea to avoid rendering overhead)
 function toggleSlotPaste(slot) {
   var ta = document.getElementById('html-' + slot);
@@ -2906,20 +2842,6 @@ function runAudit() {
 
 // syncRegistry and showBaselineOptions — kept below with full implementations
 
-// Map raw HTML tag/type from parseHTML to registry TYPE_META keys
-function normElType(type, tag) {
-  var t = (type || '').toLowerCase();
-  var tg = (tag || '').toLowerCase();
-  if(tg === 'button' || t === 'button' || t.startsWith('input[button') || t.startsWith('input[submit')) return 'BUTTON';
-  if(tg === 'input' || tg === 'textarea' || tg === 'select' || t.startsWith('input[')) return 'INPUT';
-  if(tg === 'a') return 'NAV';
-  if(tg === 'nav' || tg === 'header' || tg === 'footer') return 'NAV';
-  if(tg === 'form') return 'CARD';
-  if(tg === 'section' || tg === 'main' || tg === 'aside') return 'CARD';
-  // div/span with id — try to guess from id name
-  return 'OTHER';
-}
-
 function syncRegistry() {
   if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
   var projId = AK.lastDiff.projId || parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
@@ -2930,7 +2852,7 @@ function syncRegistry() {
     var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
     if(!exists) {
       AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.label || e.key, elType: normElType(e.type, e.tag), elId: e.key, fn: '',
+        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
         note: 'Added in ' + version, status: 'changed', version: version, ts: new Date().toISOString() });
       added++;
     }
@@ -2944,14 +2866,7 @@ function syncRegistry() {
     }
   });
   AK.save();
-  // Ensure activeProject and reg-project-sel are set correctly before rendering
-  AK.activeProject = projId;
-  updateActiveProjectHeader();
   showScreen('registry');
-  // Force reg-project-sel to this project after populate
-  var sel = document.getElementById('reg-project-sel');
-  if(sel) sel.value = projId;
-  renderRegistryScreens();
   toast('Registry synced — ' + added + ' added, ' + flagged + ' flagged');
 }
 
@@ -3000,18 +2915,12 @@ function applyBaseline(projId) {
     var exists = AK.registry.find(function(r){ return r.projectId == projId && r.elId === e.key; });
     if(!exists) {
       AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.label || e.key, elType: normElType(e.type, e.tag), elId: e.key, fn: '',
+        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
         note: 'Auto-scanned', status: 'ok', version: version, ts: new Date().toISOString() });
       added++;
     }
   });
-  AK.save();
-  AK.activeProject = projId;
-  updateActiveProjectHeader();
-  closeModal();
-  var sel = document.getElementById('reg-project-sel');
-  if(sel) sel.value = projId;
-  renderRegistryScreens();
+  AK.save(); closeModal(); renderRegistryScreens();
   toast('Added ' + added + ' elements for ' + (proj ? proj.name : 'project'));
 }
 
@@ -3270,8 +3179,6 @@ function toggleRegView() {
 }
 
 function regSelectProject() {
-  var projId = parseInt(document.getElementById('reg-project-sel').value) || null;
-  if(projId) { AK.activeProject = projId; updateActiveProjectHeader(); }
   REG_SELECTED_SCREEN = null;
   document.getElementById('reg-object-panel').style.display = 'none';
   document.getElementById('reg-screen-grid').style.display = '';
@@ -3396,8 +3303,8 @@ function renderRegObjects(screenId, projId) {
       (REG_FILTER === 'all' || r.status === REG_FILTER);
   });
 
-  // Build type filter chips from available types in this screen (scoped to project)
-  var allForScreen = AK.registry.filter(function(r){ return r.screen === screenId && (!projId || r.projectId == projId); });
+  // Build type filter chips from available types in this screen
+  var allForScreen = AK.registry.filter(function(r){ return r.screen === screenId; });
   var types = {};
   allForScreen.forEach(function(r){ types[r.elType] = (types[r.elType]||0)+1; });
 
@@ -3677,23 +3584,6 @@ function clearResolvedRegistry() {
   toast('Cleared ' + (before - AK.registry.length) + ' resolved entries');
 }
 
-function confirmClearRegistry() {
-  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
-  if(!projId) { toast('Select a project first'); return; }
-  var proj = AK.projects.find(function(p){ return p.id == projId; });
-  if(!proj) { toast('Project not found'); return; }
-  var count = AK.registry.filter(function(r){ return r.projectId == projId; }).length;
-  if(!count) { toast('No registry entries for this project'); return; }
-  if(!confirm('Delete all ' + count + ' registry entries for "' + proj.name + '"? This cannot be undone.')) return;
-  AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
-  AK.save();
-  REG_SELECTED_SCREEN = null;
-  document.getElementById('reg-object-panel').style.display = 'none';
-  document.getElementById('reg-screen-grid').style.display = '';
-  renderRegistryScreens();
-  toast('Registry cleared — ' + count + ' entries deleted');
-}
-
 // ── AI Naming Pass
 async function triggerAiNamingPass() {
   var key = localStorage.getItem('ak_api_key') || '';
@@ -3953,28 +3843,6 @@ function loadApiKeyToInput() {
   toast(k ? 'Key loaded' : 'No key saved');
 }
 
-async function testApiKey() {
-  var key = (document.getElementById("api-key-input")||{}).value || localStorage.getItem("ak_api_key") || "";
-  if(!key) { toast("Enter an API key first"); return; }
-  var out = document.getElementById("ai-output");
-  out.textContent = "Testing API connection…";
-  out.className = "loading";
-  try {
-    var body = JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:10, messages:[{role:"user",content:"ping"}] });
-    var data = await xhrPost("https://api.anthropic.com/v1/messages", body, { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
-    if(data.error) {
-      out.textContent = "❌ API error: " + (data.error.message || JSON.stringify(data.error));
-    } else {
-      out.textContent = "✅ API connection working! Key is valid.";
-      saveApiKey(key);
-    }
-    out.className = "";
-  } catch(e) {
-    out.textContent = "❌ " + e.message;
-    out.className = "";
-  }
-}
-
 // ── Build the structured Claude prompt from current diff + registry state
 function buildAuditPrompt() {
   if(!AK.lastDiff) return null;
@@ -4103,9 +3971,6 @@ async function triggerAiSummary() {
     var text = (resp.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     out.textContent = text;
     out.className = 'has-content';
-    document.getElementById('ai-panel-actions').innerHTML =
-      '<button class="btn sm teal" onclick="copyAiOutput()">⬆ Copy Output</button>' +
-      '<button class="btn sm" onclick="initAiPanel()">↩ New Summary</button>';
   } catch(e) {
     out.textContent = 'API call failed: ' + e.message + '\n\nUse Copy Prompt instead — it works from any context.';
     out.className = '';
@@ -4321,71 +4186,96 @@ function dkRenderState() {
 // Inspector
 function dkToggleInspect() {
   DK.inspecting = !DK.inspecting;
-  var ov = document.getElementById('dk-inspect-overlay');
   var bn = document.getElementById('dk-inspect-banner');
+  var app = document.getElementById('app');
   var panel = document.getElementById('dk-panel');
 
   if(DK.inspecting) {
+    // Close the panel — user now taps anywhere in the app
     panel.classList.remove('open');
-    ov.style.display = 'block';
-    ov.style.pointerEvents = 'auto'; // must capture taps
+    DK.panelOpen = false;
     bn.style.display = 'block';
-    ov.addEventListener('touchend', dkInspectTap);
-    ov.addEventListener('click', dkInspectTap);
+    app.classList.add('dk-inspecting');
+    // Listen on document so we catch real element taps with no overlay in the way
+    document.addEventListener('touchend', dkInspectTap, { capture: true, once: true });
+    document.addEventListener('click',    dkInspectTap, { capture: true, once: true });
   } else {
-    ov.style.display = 'none';
-    ov.style.pointerEvents = 'none';
     bn.style.display = 'none';
-    ov.removeEventListener('touchend', dkInspectTap);
-    ov.removeEventListener('click', dkInspectTap);
+    app.classList.remove('dk-inspecting');
+    document.removeEventListener('touchend', dkInspectTap, true);
+    document.removeEventListener('click',    dkInspectTap, true);
   }
 }
 
 function dkInspectTap(e) {
   e.preventDefault();
+  e.stopPropagation();
+
+  // changedTouches on touchend; clientX/Y on click
   var x, y;
-  // touchend: use changedTouches (touches is empty on end)
-  if(e.changedTouches && e.changedTouches[0]) { x = e.changedTouches[0].clientX; y = e.changedTouches[0].clientY; }
-  else if(e.touches && e.touches[0]) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
-  else { x = e.clientX; y = e.clientY; }
+  if(e.changedTouches && e.changedTouches[0]) {
+    x = e.changedTouches[0].clientX;
+    y = e.changedTouches[0].clientY;
+  } else {
+    x = e.clientX;
+    y = e.clientY;
+  }
 
-  var ov = document.getElementById('dk-inspect-overlay');
-  ov.style.display = 'none';
+  // Turn off inspect mode visuals before hit-testing
+  var bn = document.getElementById('dk-inspect-banner');
+  var app = document.getElementById('app');
+  bn.style.display = 'none';
+  app.classList.remove('dk-inspecting');
+  DK.inspecting = false;
+
   var target = document.elementFromPoint(x, y);
-  ov.style.display = 'block';
+  if(!target || target === document.body || target === document.documentElement) {
+    dkOpenPanel('log'); return;
+  }
 
-  if(!target) { dkToggleInspect(); return; }
+  // Skip DevKit's own elements
+  if(target.closest && target.closest('#dk-panel,#dk-toggle,#dk-version')) {
+    dkOpenPanel('log'); return;
+  }
 
-  // Walk up for best identifier
-  var el = target;
-  var ref = null;
+  // Walk up to find the best identifier (prefer #id, then .class)
+  var el = target, ref = null;
   for(var i = 0; i < 6; i++) {
     if(!el || el === document.body) break;
     if(el.id && !el.id.startsWith('dk-')) { ref = '#' + el.id; break; }
     if(el.className && typeof el.className === 'string' && el.className.trim()) {
       var cls = el.className.trim().split(/\s+/).filter(function(c){ return !c.startsWith('dk-'); })[0];
-      if(cls) { ref = '.' + cls; }
+      if(cls) { ref = '.' + cls; break; }
     }
     el = el.parentElement;
   }
   if(!ref) ref = target.tagName.toLowerCase();
-  var label = (target.textContent || '').trim().slice(0, 40) || target.getAttribute('placeholder') || '';
+
+  var label = (target.textContent || '').trim().slice(0, 40)
+    || target.getAttribute('placeholder')
+    || target.getAttribute('aria-label')
+    || target.getAttribute('title')
+    || '';
   DK.ref = ref + (label ? ' · "' + label + '"' : '');
 
-  // Flash highlight
+  // Flash the tapped element
+  var prev = target.style.outline;
   target.style.outline = '2px solid var(--teal)';
-  setTimeout(function(){ target.style.outline = ''; }, 800);
+  setTimeout(function(){ target.style.outline = prev; }, 700);
 
-  dkToggleInspect();
-  DK.inspecting = false;
   dkRenderRefChip();
+  dkOpenPanel('log');
+}
+
+// Open the DevKit panel on a specific tab
+function dkOpenPanel(tabName) {
   document.getElementById('dk-panel').classList.add('open');
   DK.panelOpen = true;
-  dkTab({ target: document.querySelectorAll('.dk-tab-btn')[0] }, 'log');
-  // switch to log tab
-  DK.tab = 'log';
-  document.querySelectorAll('.dk-tab-btn').forEach(function(b,i){ b.classList.toggle('active', i===0); });
-  document.querySelectorAll('.dk-tab-content').forEach(function(t,i){ t.classList.toggle('active', i===0); });
+  DK.tab = tabName;
+  var tabIndex = { log: 0, entries: 1, state: 2, map: 3 };
+  var idx = tabIndex[tabName] !== undefined ? tabIndex[tabName] : 0;
+  document.querySelectorAll('.dk-tab-btn').forEach(function(b,i){ b.classList.toggle('active', i===idx); });
+  document.querySelectorAll('.dk-tab-content').forEach(function(t,i){ t.classList.toggle('active', i===idx); });
 }
 
 function dkRenderRefChip() {
