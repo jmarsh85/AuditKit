@@ -1798,12 +1798,6 @@
           </div>
         </div>
 
-        <!-- Baseline reminder — shown when no baseline saved for active project -->
-        <div id="baseline-notice" style="display:none;margin:0 16px 12px;padding:10px 12px;background:var(--amber-dim);border:1px solid rgba(245,166,35,0.3);border-radius:6px;font-size:11px;color:var(--amber);line-height:1.6">
-          <strong>⊙ No baseline saved for this project.</strong><br>
-          Load your current stable version into Slot A, then tap <strong>⊙ Save Baseline</strong> — it will auto-load next time so you always compare against a known-good version.
-        </div>
-
         <div class="card-body col">
           <div class="audit-panels">
             <!-- VERSION A -->
@@ -2494,12 +2488,20 @@ function exportDiff() {
       added: d.added.length,
       removed: d.removed.length,
       changed: d.changed.length,
-      irregular: (d.unexpected||[]).length
+      irregular: (d.unexpected||[]).length,
+      functions_modified: d.codeDiff ? d.codeDiff.modified.length : 0,
+      functions_added: d.codeDiff ? d.codeDiff.added.length : 0,
+      functions_removed: d.codeDiff ? d.codeDiff.removed.length : 0
     },
     irregular_removals: (d.unexpected||[]).map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
     added: d.added.map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
     removed: d.removed.map(function(e){ return { id: e.key, type: e.type, label: e.label }; }),
-    changed: d.changed.map(function(c){ return { id: c.el.key, from: c.was.type, to: c.el.type }; })
+    changed: d.changed.map(function(c){ return { id: c.el.key, from: c.was.type, to: c.el.type }; }),
+    code_changes: d.codeDiff ? {
+      functions_modified: d.codeDiff.modified.map(function(f){ return f.name; }),
+      functions_added: d.codeDiff.added.map(function(f){ return f.name; }),
+      functions_removed: d.codeDiff.removed.map(function(f){ return f.name; })
+    } : null
   };
 
   copyOrShare(JSON.stringify(output, null, 2), 'auditkit-diff-' + ts.slice(0,10) + '.json');
@@ -2509,14 +2511,8 @@ function exportDiff() {
 function auditSelectProject() {
   populateAuditSelects();
   var projId = parseInt(document.getElementById('audit-project-sel').value);
-  if(!projId) {
-    document.getElementById('baseline-notice').style.display = 'none';
-    return;
-  }
+  if(!projId) return;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
-  // Show/hide baseline notice
-  var hasBaseline = !!localStorage.getItem('ak_baseline_html_' + projId);
-  document.getElementById('baseline-notice').style.display = hasBaseline ? 'none' : 'block';
   // Check if a baseline HTML is stored for this project
   var baselineKey = 'ak_baseline_html_' + projId;
   var baseline = localStorage.getItem(baselineKey);
@@ -2541,7 +2537,6 @@ function saveSlotAsBaseline() {
   if(!src) { toast('Load an HTML file into Slot A first'); return; }
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   localStorage.setItem('ak_baseline_html_' + projId, src);
-  document.getElementById('baseline-notice').style.display = 'none';
   toast('Baseline saved for ' + (proj ? proj.name : 'project') + ' — will auto-load next time');
 }
 
@@ -2745,185 +2740,132 @@ function dropFile(slot, e) {
 }
 
 // ════════════════════════════════════════════════════════════════
-//  CODE / FUNCTION DIFF
+//  CODE / FUNCTION DIFF  (proven algorithm — see session notes)
 // ════════════════════════════════════════════════════════════════
 
-// Normalize a JS function body before fingerprinting:
-// strips comments and collapses whitespace so Claude's cosmetic
-// reformatting doesn't register as a real change.
-function normalizeFnBody(src) {
-  // Remove block comments
-  src = src.replace(/\/\*[\s\S]*?\*\//g, ' ');
-  // Remove line comments
-  src = src.replace(/\/\/[^\n]*/g, ' ');
-  // Collapse all whitespace runs to a single space
-  src = src.replace(/\s+/g, ' ').trim();
-  return src;
+// Normalize a text region for hashing:
+// strips comments and string CONTENTS (replaces with placeholders),
+// then collapses whitespace — so cosmetic reformatting is invisible.
+function normFnText(s) {
+  return s
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+    .replace(/\s+/g, ' ').trim();
 }
 
-// Extract the names of other named functions called inside a body string.
-// Returns a sorted array of unique names — the "call signature" of the function.
-function extractCalls(body, knownNames) {
-  var calls = {};
-  var re = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
-  var m;
-  while((m = re.exec(body)) !== null) {
-    var name = m[1];
-    if(knownNames[name]) calls[name] = true;
-  }
-  return Object.keys(calls).sort();
+function _fnHash(str) {
+  var h = str.length;
+  for(var c = 0; c < Math.min(str.length, 8000); c++) h = (h * 31 + str.charCodeAt(c)) & 0x7fffffff;
+  return h;
 }
 
-// Extract all named JS functions from an HTML source string.
-// Returns a map: { funcName: { name, args, normHash, bodyLen, calls, line } }
-function parseJSFunctions(src) {
-  // Pull all inline <script> blocks (ignore external src= scripts)
-  var scriptContent = '';
-  var scriptRe = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
-  var m;
-  while((m = scriptRe.exec(src)) !== null) { scriptContent += m[1] + '\n'; }
-
-  // First pass: collect all function names so call-graph extraction is accurate
-  var allNames = {};
-  var nameRe = /(?:^|[\s;,({])(async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/gm;
-  while((m = nameRe.exec(scriptContent)) !== null) allNames[m[2]] = true;
-  // Also catch var/let/const assignments
-  var assignRe = /(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/gm;
-  while((m = assignRe.exec(scriptContent)) !== null) allNames[m[1]] = true;
-
-  // Build char→line index for approximate line numbers
-  var lines = scriptContent.split('\n');
-  var charLineMap = [];
-  var charCount = 0;
-  lines.forEach(function(l, i) {
-    for(var j = 0; j < l.length + 1; j++) charLineMap[charCount++] = i + 1;
+// Find all named function declarations (any indent) + top-level arrow/var assignments.
+// Returns array of { name, indent, lineIdx }.
+function _findFnDecls(script) {
+  var lines = script.split('\n');
+  var declRe  = /^(\s*)(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
+  var assignRe = /^()(var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?(?:function|\(|[a-zA-Z_$])/;
+  var funcs = [];
+  lines.forEach(function(line, idx) {
+    var m = declRe.exec(line);
+    if(m) { funcs.push({ name: m[2], indent: m[1].length, lineIdx: idx }); return; }
+    var m2 = assignRe.exec(line);
+    if(m2) funcs.push({ name: m2[3], indent: 0, lineIdx: idx });
   });
-
-  var funcs = {};
-
-  // Helper: extract body starting at opening brace index, return the body string
-  function extractBody(startIdx) {
-    var depth = 0, i = startIdx;
-    while(i < scriptContent.length) {
-      var ch = scriptContent[i];
-      // Skip strings to avoid counting braces inside them
-      if(ch === '"' || ch === "'" || ch === '`') {
-        var q = ch; i++;
-        while(i < scriptContent.length && scriptContent[i] !== q) {
-          if(scriptContent[i] === '\\') i++; // escape
-          i++;
-        }
-      } else if(ch === '{') { depth++; }
-      else if(ch === '}') { depth--; if(depth === 0) return scriptContent.slice(startIdx, i + 1); }
-      i++;
-    }
-    return scriptContent.slice(startIdx);
-  }
-
-  // Match function declarations: function name(args) { }
-  var declRe = /(?:^|[\s;,({])(async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)\s*\{/gm;
-  while((m = declRe.exec(scriptContent)) !== null) {
-    var name = m[2];
-    var args = m[3].trim();
-    var braceStart = m.index + m[0].length - 1;
-    var body = extractBody(braceStart);
-    var norm = normalizeFnBody(body);
-    // Simple but stable hash of normalized body
-    var hash = norm.length;
-    for(var c = 0; c < Math.min(norm.length, 3000); c++) {
-      hash = (hash * 31 + norm.charCodeAt(c)) & 0x7fffffff;
-    }
-    funcs[name] = {
-      name: name, args: args,
-      bodyLen: body.length, normHash: hash,
-      calls: [], // filled in second pass
-      line: charLineMap[m.index] || 0,
-      rawBody: body
-    };
-  }
-
-  // Match var/let/const name = (async) function(...) { } or arrow functions
-  var arrowRe = /(?:^|[\s;,])(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?(?:function\s*\*?\s*\([^)]*\)|(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>)\s*\{/gm;
-  while((m = arrowRe.exec(scriptContent)) !== null) {
-    var name = m[1];
-    if(funcs[name]) continue;
-    var braceStart = m.index + m[0].length - 1;
-    var body = extractBody(braceStart);
-    var norm = normalizeFnBody(body);
-    var hash = norm.length;
-    for(var c = 0; c < Math.min(norm.length, 3000); c++) {
-      hash = (hash * 31 + norm.charCodeAt(c)) & 0x7fffffff;
-    }
-    funcs[name] = {
-      name: name, args: '…',
-      bodyLen: body.length, normHash: hash,
-      calls: [], line: charLineMap[m.index] || 0,
-      rawBody: body
-    };
-  }
-
-  // Second pass: extract call graph for each function
-  Object.keys(funcs).forEach(function(name) {
-    funcs[name].calls = extractCalls(funcs[name].rawBody, allNames);
-    delete funcs[name].rawBody; // don't keep full source in memory
-  });
-
   return funcs;
 }
 
-// Compare function maps from A and B.
-// Returns { added, removed, modified, totalA, totalB }
-// "modified" includes both body changes and call-graph changes, labelled separately.
-function runCodeDiff(srcA, srcB) {
-  var funcsA = parseJSFunctions(srcA);
-  var funcsB = parseJSFunctions(srcB);
+// Extract and hash just the function body (not its neighbors).
+// Uses simple brace-depth tracking on the raw text lines (fast, no full parser needed).
+// Stops when:
+//   a) brace depth returns to 0 (actual end of function)
+//   b) next sibling function declaration found at same/lesser indent (safety boundary)
+//   c) a top-level var/let/const line appears after a top-level function
+function _hashFnBody(lines, decl) {
+  var chunk = [];
+  var braceDepth = 0;
+  var bodyStarted = false;
 
-  var added = [], removed = [], modified = [];
+  for(var i = decl.lineIdx; i < lines.length; i++) {
+    var line = lines[i];
 
-  Object.keys(funcsB).forEach(function(name) {
-    if(!funcsA[name]) {
-      added.push(funcsB[name]);
-    } else {
-      var a = funcsA[name], b = funcsB[name];
-      var bodyChanged = a.normHash !== b.normHash;
-      var callsChanged = a.calls.join(',') !== b.calls.join(',');
-      if(bodyChanged || callsChanged) {
-        var sizeDelta = b.bodyLen - a.bodyLen;
-        // Classify: if body is identical after normalization but calls differ → wiring change
-        // If body changed but calls same → internal logic change
-        // If both → significant rewrite
-        var changeType = (!bodyChanged && callsChanged) ? 'wiring'
-          : (bodyChanged && !callsChanged) ? 'logic'
-          : 'rewrite';
-        modified.push({
-          name: name, args: b.args, line: b.line,
-          sizeDelta: sizeDelta,
-          changeType: changeType,
-          callsA: a.calls, callsB: b.calls,
-          bodyChanged: bodyChanged, callsChanged: callsChanged
-        });
-      }
+    // Safety: stop at next sibling/parent function declaration
+    if(i > decl.lineIdx) {
+      var m = /^(\s*)(?:async\s+)?function\s+([a-zA-Z_$])/.exec(line);
+      if(m && m[1].length <= decl.indent) break;
+      // Stop at top-level var/let/const after a top-level function
+      if(decl.indent === 0 && /^(?:var|let|const)\s+/.test(line)) break;
     }
+
+    chunk.push(line);
+
+    // Count braces in this line (ignoring strings — good enough at line level)
+    for(var c = 0; c < line.length; c++) {
+      if(line[c] === '{') { braceDepth++; bodyStarted = true; }
+      else if(line[c] === '}') { braceDepth--; }
+    }
+    // Once we've entered the body and returned to depth 0, we're done
+    if(bodyStarted && braceDepth <= 0 && chunk.length > 1) break;
+  }
+
+  return _fnHash(normFnText(chunk.join('\n')));
+}
+
+// Build name → hash map for all functions in a script string.
+function _buildFnMap(script) {
+  var lines = script.split('\n');
+  var decls = _findFnDecls(script);
+  var map = {};
+  decls.forEach(function(d) {
+    map[d.name] = { hash: _hashFnBody(lines, d), indent: d.indent };
   });
-  Object.keys(funcsA).forEach(function(name) {
-    if(!funcsB[name]) removed.push(funcsA[name]);
+  return map;
+}
+
+// Extract all <script> blocks from HTML source (ignoring external src= scripts).
+function _extractScripts(src) {
+  var out = '';
+  var re = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
+  var m;
+  while((m = re.exec(src)) !== null) out += m[1] + '\n';
+  return out;
+}
+
+// Compare two HTML files at the function level.
+// Returns { modified, added, removed, totalA, totalB }.
+function runCodeDiff(srcA, srcB) {
+  var scriptA = _extractScripts(srcA);
+  var scriptB = _extractScripts(srcB);
+  var mapA = _buildFnMap(scriptA);
+  var mapB = _buildFnMap(scriptB);
+
+  var modified = [], added = [], removed = [];
+
+  Object.keys(mapB).forEach(function(name) {
+    if(!mapA[name]) added.push({ name: name });
+    else if(mapA[name].hash !== mapB[name].hash) modified.push({ name: name });
+  });
+  Object.keys(mapA).forEach(function(name) {
+    if(!mapB[name]) removed.push({ name: name });
   });
 
   return {
-    added: added, removed: removed, modified: modified,
-    totalA: Object.keys(funcsA).length,
-    totalB: Object.keys(funcsB).length
+    modified: modified, added: added, removed: removed,
+    totalA: Object.keys(mapA).length, totalB: Object.keys(mapB).length
   };
 }
 
-// Render the code diff card in the audit results area
+// Render the Code Changes card in the audit results section.
 function renderCodeDiff(codeDiff) {
   var card = document.getElementById('code-diff-card');
   var badge = document.getElementById('code-diff-summary-badge');
   var list = document.getElementById('code-diff-list');
-  if(!codeDiff) { if(card) card.style.display = 'none'; return; }
+  if(!codeDiff || !card) return;
 
-  var total = codeDiff.added.length + codeDiff.removed.length + codeDiff.modified.length;
+  var total = codeDiff.modified.length + codeDiff.added.length + codeDiff.removed.length;
   card.style.display = '';
 
   if(total === 0) {
@@ -2931,68 +2873,42 @@ function renderCodeDiff(codeDiff) {
     badge.className = 'badge ok';
     list.innerHTML = '<div class="empty-state" style="padding:16px">' +
       '<span class="empty-state-icon" style="font-size:18px">✓</span>' +
-      codeDiff.totalB + ' functions — no logic changes detected.</div>';
+      codeDiff.totalB + ' functions — no changes detected.</div>';
     return;
   }
 
   badge.textContent = total + ' change' + (total > 1 ? 's' : '');
   badge.className = 'badge flagged';
 
-  // Change type labels and colours
-  var typeInfo = {
-    logic:   { label: 'Logic change',   color: 'var(--amber)',  hint: 'Internal behaviour changed' },
-    wiring:  { label: 'Wiring change',  color: 'var(--purple)', hint: 'Calls different functions now' },
-    rewrite: { label: 'Rewritten',      color: 'var(--red)',    hint: 'Both logic and wiring changed' }
-  };
-
   var html = '<div style="font-size:10px;color:var(--t3);padding:0 0 10px">' +
-    codeDiff.totalA + ' → ' + codeDiff.totalB + ' functions &nbsp;·&nbsp; ' +
+    'A: ' + codeDiff.totalA + ' functions → B: ' + codeDiff.totalB + ' &nbsp;·&nbsp; ' +
     (codeDiff.modified.length ? '<span style="color:var(--amber)">' + codeDiff.modified.length + ' modified</span> &nbsp;' : '') +
-    (codeDiff.added.length   ? '<span style="color:var(--green)">' + codeDiff.added.length   + ' added</span> &nbsp;' : '') +
-    (codeDiff.removed.length ? '<span style="color:var(--red)">'   + codeDiff.removed.length + ' removed</span>' : '') +
+    (codeDiff.added.length   ? '<span style="color:var(--green)">'  + codeDiff.added.length   + ' added</span> &nbsp;'    : '') +
+    (codeDiff.removed.length ? '<span style="color:var(--red)">'    + codeDiff.removed.length + ' removed</span>'         : '') +
   '</div>';
 
-  // Modified first — highest signal
-  codeDiff.modified.forEach(function(c) {
-    var ti = typeInfo[c.changeType] || typeInfo.logic;
-    var sizeTxt = c.sizeDelta === 0 ? 'same size'
-      : (c.sizeDelta > 0 ? '+' : '') + c.sizeDelta + ' chars';
-
-    // Show added/removed calls if wiring changed
-    var callDetail = '';
-    if(c.callsChanged) {
-      var gained = c.callsB.filter(function(n){ return c.callsA.indexOf(n) < 0; });
-      var lost   = c.callsA.filter(function(n){ return c.callsB.indexOf(n) < 0; });
-      if(gained.length) callDetail += ' +calls: ' + gained.join(', ');
-      if(lost.length)   callDetail += ' −calls: ' + lost.join(', ');
-    }
-
+  codeDiff.modified.forEach(function(f) {
     html += '<div class="diff-item changed">' +
       '<div class="diff-icon">~</div>' +
       '<div class="diff-content">' +
-        '<div class="diff-type" style="color:' + ti.color + '">' + ti.label + '</div>' +
-        '<div class="diff-desc">' + _esc(c.name) + '()</div>' +
-        '<div class="diff-detail">' + sizeTxt + (c.line ? ' · ~line ' + c.line : '') + _esc(callDetail) + '</div>' +
+        '<div class="diff-type" style="color:var(--amber)">Modified</div>' +
+        '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
       '</div></div>';
   });
-
   codeDiff.added.forEach(function(f) {
     html += '<div class="diff-item added">' +
       '<div class="diff-icon">+</div>' +
       '<div class="diff-content">' +
         '<div class="diff-type">New function</div>' +
         '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
-        '<div class="diff-detail">' + f.bodyLen + ' chars' + (f.line ? ' · ~line ' + f.line : '') + '</div>' +
       '</div></div>';
   });
-
   codeDiff.removed.forEach(function(f) {
     html += '<div class="diff-item removed">' +
       '<div class="diff-icon">−</div>' +
       '<div class="diff-content">' +
         '<div class="diff-type">Removed function</div>' +
         '<div class="diff-desc">' + _esc(f.name) + '()</div>' +
-        '<div class="diff-detail">was ' + f.bodyLen + ' chars</div>' +
       '</div></div>';
   });
 
@@ -3129,11 +3045,11 @@ function runAudit() {
   document.getElementById('audit-clear-btn').style.display = 'inline-flex';
   initAiPanel();
 
-  // Code / function diff
+  // Code / function diff (proven algorithm — no false positives on template-literal-heavy files)
   var codeDiff = runCodeDiff(srcA, srcB);
   AK.lastDiff.codeDiff = codeDiff;
   renderCodeDiff(codeDiff);
-  var codeChanges = codeDiff.added.length + codeDiff.removed.length + codeDiff.modified.length;
+  var codeChanges = codeDiff.modified.length + codeDiff.added.length + codeDiff.removed.length;
   if(codeChanges > 0) {
     document.getElementById('code-diff-body').style.display = 'block';
     document.getElementById('code-diff-chevron').textContent = '▲';
@@ -4193,37 +4109,21 @@ function buildAuditPrompt() {
     p += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
   }
 
-  // Code diff section — the most important new signal for this workflow
   var cd = diff.codeDiff;
   if(cd) {
-    var codeTotal = cd.modified.length + cd.added.length + cd.removed.length;
     p += '## Code / Function Analysis\n';
-    p += 'Total functions: A=' + cd.totalA + ' → B=' + cd.totalB + '\n';
-    if(codeTotal === 0) {
-      p += 'No function-level changes detected (after normalizing whitespace and comments).\n\n';
+    p += 'Total functions: A=' + cd.totalA + ' → B=' + cd.totalB + '\n\n';
+    if(cd.modified.length + cd.added.length + cd.removed.length === 0) {
+      p += 'No function-level changes detected.\n\n';
     } else {
       if(cd.modified.length) {
-        p += '\n### Modified Functions (' + cd.modified.length + ')\n';
-        p += 'These functions existed in both versions but their code changed.\n';
-        cd.modified.forEach(function(c) {
-          var typeDesc = c.changeType === 'wiring'  ? 'calls different functions now (behaviour wiring changed)'
-                       : c.changeType === 'logic'   ? 'internal logic changed (same function calls)'
-                       : 'significantly rewritten (logic AND function calls changed)';
-          p += '- ' + c.name + '(): ' + typeDesc;
-          if(c.sizeDelta !== 0) p += ', size ' + (c.sizeDelta > 0 ? '+' : '') + c.sizeDelta + ' chars';
-          if(c.callsChanged) {
-            var gained = c.callsB.filter(function(n){ return c.callsA.indexOf(n) < 0; });
-            var lost   = c.callsA.filter(function(n){ return c.callsB.indexOf(n) < 0; });
-            if(gained.length) p += ', now calls: ' + gained.join(', ');
-            if(lost.length)   p += ', no longer calls: ' + lost.join(', ');
-          }
-          p += '\n';
-        });
-        p += '\n';
+        p += '### Modified Functions (' + cd.modified.length + ')\n';
+        p += 'These functions existed in both versions but their code changed:\n';
+        p += cd.modified.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
       }
       if(cd.removed.length) {
         p += '### Removed Functions (' + cd.removed.length + ')\n';
-        p += 'These functions exist in A but are gone from B — check if intentional:\n';
+        p += 'These exist in A but are gone from B — verify intentional:\n';
         p += cd.removed.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
       }
       if(cd.added.length) {
@@ -4238,7 +4138,7 @@ function buildAuditPrompt() {
   p += '2. IRREGULAR ITEMS: Flag anything that looks like a silent regression — missing functions, forms, nav elements.\n';
   p += '3. SAFE TO PROMOTE: Is Version B safe to push to GitHub? If not, what must be fixed first?\n';
   p += '4. ACTION LIST: Prioritized, specific items to address.\n';
-  p += 'Be direct. Flag any regressions. The developer is not a programmer — write in plain English, avoid jargon.';
+  p += 'Be direct. Flag any regressions. The developer is not a programmer — use plain English, no jargon.';
 
   return p;
 }
@@ -4255,8 +4155,8 @@ function buildAndCopyPrompt() {
   function onCopied() {
     out.className = 'has-content';
     var cd = diff.codeDiff;
-    var codeNote = cd
-      ? '• Code changes: ' + cd.modified.length + ' modified, ' + cd.added.length + ' added, ' + cd.removed.length + ' removed functions\n'
+    var codeNote = cd && (cd.modified.length + cd.added.length + cd.removed.length > 0)
+      ? '• Code changes: ' + cd.modified.length + ' modified, ' + cd.added.length + ' added, ' + cd.removed.length + ' removed\n'
       : '';
     out.textContent =
       '✓ Prompt copied to clipboard.\n\n' +
