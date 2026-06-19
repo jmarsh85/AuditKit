@@ -3812,7 +3812,7 @@ async function triggerAiNamingPass() {
     }).join('\n');
 
   try {
-    var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] });
+    var body = JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user',content:prompt}] });
     var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     var clean = text.replace(/```json|```/g,'').trim();
@@ -4200,7 +4200,7 @@ async function triggerAiSummary() {
   out.textContent = 'Calling Claude API…';
 
   try {
-    var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] });
+    var body = JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, messages:[{role:'user',content:prompt}] });
     var resp = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     if(resp.error) { out.textContent = 'API Error: ' + (resp.error.message||JSON.stringify(resp.error)); out.className = ''; return; }
     var text = (resp.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
@@ -4226,7 +4226,7 @@ async function logAiSummary() {
   toast('Generating AI summary…');
 
   try {
-    var body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, messages:[{role:'user',content:prompt}] });
+    var body = JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, messages:[{role:'user',content:prompt}] });
     var data = await xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' });
     var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
     if(text) {
