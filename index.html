@@ -673,8 +673,9 @@
     background: var(--bg2);
     border: 1px solid var(--border1);
     border-radius: 8px;
-    overflow: hidden;
   }
+
+  #ai-panel-actions { flex-wrap: wrap; }
 
   #ai-output {
     padding: 14px 16px;
@@ -698,6 +699,76 @@
     align-items: center;
   }
   .ai-key-label { font-size: 10px; color: var(--t3); white-space: nowrap; }
+
+  /* ════════════════════════════════════════════
+     SCREEN: MOCKUP
+  ════════════════════════════════════════════ */
+  #mk-paste-target:focus { outline: none; border-color: var(--teal-border); color: var(--teal); }
+
+  #mk-canvas-wrap {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--border1);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg0);
+    touch-action: none;
+  }
+  #mk-image { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  #mk-overlay-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .mk-pin-dot { fill: var(--teal); stroke: var(--bg0); stroke-width: 2; }
+  .mk-pin-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--bg0);
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .mk-box-rect { fill: rgba(0,229,204,0.12); stroke: var(--teal); stroke-width: 2; }
+  .mk-box-rect.drawing { stroke-dasharray: 4 3; }
+  .mk-box-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--teal);
+  }
+
+  #mk-mode-pin.active, #mk-mode-box.active { background: var(--teal-dim); border-color: var(--teal-border); color: var(--teal); }
+
+  #mk-annotation-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+
+  .mk-anno-item {
+    background: var(--bg2);
+    border: 1px solid var(--border1);
+    border-left: 3px solid var(--teal);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .mk-anno-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .mk-anno-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--teal-dim);
+    color: var(--teal);
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .mk-anno-type { font-size: 9px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .mk-anno-del { margin-left: auto; background: none; border: none; color: var(--t3); cursor: pointer; font-size: 13px; }
+  .mk-anno-del:hover { color: var(--red); }
+  .mk-anno-item select { margin-bottom: 6px; height: 30px; font-size: 11px; }
+  .mk-anno-item textarea { min-height: 50px; font-size: 11px; }
 
   /* ════════════════════════════════════════════
      DEVKIT — internal overlay
@@ -1626,6 +1697,20 @@
     #screen-log .card-header .row { width: 100%; }
     #screen-log .card-header .btn { flex: 1; justify-content: center; }
 
+    /* AI SUMMARY panel header — stack actions full-width so nothing clips in portrait */
+    #ai-panel .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    #ai-panel-actions { width: 100%; }
+    #ai-panel-actions .btn { flex: 1; justify-content: center; }
+
+    /* MOCKUP toolbar — wrap instead of clipping */
+    #mk-workspace > .row { flex-wrap: wrap; }
+    #mk-workspace > .row .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-width: 90px; }
+
+    /* ALL CHANGES card header — wrap 3 actions into 2 rows instead of clipping/scrolling */
+    #all-changes-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    #all-changes-actions { width: 100%; flex-wrap: wrap; }
+    #all-changes-actions .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-width: 110px; }
+
     /* PROJECT CARDS */
     .project-card { padding: 12px; }
     .project-name { font-size: 13px; }
@@ -1709,6 +1794,7 @@
     <button class="nav-tab" onclick="showScreen('audit')">Audit</button>
     <button class="nav-tab" onclick="showScreen('registry')">Registry</button>
     <button class="nav-tab" onclick="showScreen('log')">Log</button>
+    <button class="nav-tab" onclick="showScreen('mockup')">Mockup</button>
   </div>
   </div><!-- /sticky-chrome -->
 
@@ -1814,7 +1900,7 @@
                 </div>
                 <div id="slot-a-info" class="slot-info" style="display:none"></div>
                 <!-- textarea hidden after load to avoid rendering overhead -->
-                <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…" style="display:none"></textarea>
+                <textarea class="html-textarea" id="html-a" placeholder="Paste HTML source here…" style="display:none" oninput="onSlotPasteInput('a')"></textarea>
                 <button class="btn sm" id="slot-a-paste-btn" onclick="toggleSlotPaste('a')" style="margin-top:6px">✎ Paste instead</button>
               </div>
             </div>
@@ -1831,7 +1917,7 @@
                   Drop .html or tap to browse
                 </div>
                 <div id="slot-b-info" class="slot-info" style="display:none"></div>
-                <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…" style="display:none"></textarea>
+                <textarea class="html-textarea" id="html-b" placeholder="Paste HTML source here…" style="display:none" oninput="onSlotPasteInput('b')"></textarea>
                 <button class="btn sm" id="slot-b-paste-btn" onclick="toggleSlotPaste('b')" style="margin-top:6px">✎ Paste instead</button>
               </div>
             </div>
@@ -1847,6 +1933,11 @@
       <div id="audit-results">
         <div class="diff-summary" id="diff-summary"></div>
 
+        <!-- Plain-English next-step guidance, populated by runAudit() -->
+        <div class="card" id="reg-guidance-card" style="display:none">
+          <div class="card-body" id="reg-guidance-body" style="font-size:12px;line-height:1.7"></div>
+        </div>
+
         <!-- Gap framing: expected vs unexpected -->
         <div class="card" id="diff-expected-card" style="display:none">
           <div class="card-header">
@@ -1859,11 +1950,11 @@
         </div>
 
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" id="all-changes-header">
             <span class="card-title">All Changes</span>
-            <div class="row">
+            <div class="row" id="all-changes-actions">
               <button class="btn sm" onclick="exportDiff()">⬆ Export Diff</button>
-              <button class="btn sm" onclick="syncRegistry()">⟳ Sync Registry</button>
+              <button class="btn green sm" onclick="promoteToStable()">✓ Promote to Stable</button>
               <button class="btn purple sm" onclick="triggerAiSummary()">✦ AI Export</button>
             </div>
           </div>
@@ -1914,12 +2005,13 @@
             <select id="reg-project-sel" class="audit-project-select" style="height:30px;font-size:12px;width:140px" onchange="regSelectProject()">
               <option value="">All projects…</option>
             </select>
+            <button class="btn sm" onclick="showChangelog()">📜 Changelog</button>
             <button class="btn teal sm" onclick="doExportRegistry()">⬆ Export</button>
           </div>
         </div>
         <div class="audit-toolbar">
           <div class="audit-toolbar-row" style="flex-wrap:wrap;gap:6px">
-            <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Set Baseline</button>
+            <button class="btn sm amber" onclick="showBaselineOptions()" style="flex-shrink:0">⊙ Lock Baseline</button>
             <button class="btn sm purple" onclick="triggerAiNamingPass()" style="flex-shrink:0">✦ AI Name Pass</button>
             <button class="btn sm" onclick="clearResolvedRegistry()" style="flex-shrink:0">Clear Resolved</button>
             <button class="btn sm" onclick="toggleRegView()" id="reg-view-btn" style="flex-shrink:0">☰ List View</button>
@@ -2027,6 +2119,70 @@
 
     </div>
 
+    <!-- ── MOCKUP SCREEN ── -->
+    <div id="screen-mockup" class="screen">
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Mockup / Redesign Notes</span>
+          <span id="mk-project-tag" class="badge unchecked">no project</span>
+        </div>
+        <div class="card-body">
+          <div id="mk-empty-state">
+            <p style="color:var(--t2);font-size:12px;line-height:1.6;margin-bottom:12px;">
+              Load a screenshot, tap or draw on it to mark areas you want changed, then generate
+              a plain-English description you can paste into your next Claude session.
+            </p>
+            <div class="row" style="gap:10px;flex-wrap:wrap;">
+              <button class="btn teal" onclick="document.getElementById('mk-file-input').click()">⬆ Load Screenshot</button>
+              <button class="btn" onclick="mkPasteToggle()">📋 Paste Image</button>
+            </div>
+            <input type="file" id="mk-file-input" accept="image/*" style="display:none" onchange="mkFileSelected(event)">
+            <div id="mk-paste-zone" style="display:none;margin-top:10px;">
+              <div style="border:1px dashed var(--border3);border-radius:var(--radius);padding:16px;text-align:center;color:var(--t3);font-size:11px;" id="mk-paste-target" tabindex="0">
+                Tap here, then paste (long-press → Paste) an image
+              </div>
+            </div>
+          </div>
+
+          <!-- WORKSPACE (hidden until an image is loaded) -->
+          <div id="mk-workspace" style="display:none;">
+
+            <div class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+              <button class="btn sm" id="mk-mode-pin" onclick="mkSetMode('pin')">📍 Pin</button>
+              <button class="btn sm" id="mk-mode-box" onclick="mkSetMode('box')">▭ Box</button>
+              <span class="spacer"></span>
+              <button class="btn sm" onclick="mkUndo()">↶ Undo</button>
+              <button class="btn sm red" onclick="mkClearAll()">✕ Clear All</button>
+              <button class="btn sm" onclick="mkNewImage()">⟳ New Image</button>
+            </div>
+
+            <div id="mk-canvas-wrap">
+              <img id="mk-image" alt="Screenshot being annotated">
+              <svg id="mk-overlay-svg"></svg>
+            </div>
+
+            <div id="mk-annotation-list"></div>
+
+            <div class="row" style="margin-top:14px;">
+              <button class="btn teal full" onclick="mkGenerateDescription()">✦ Generate Description</button>
+            </div>
+
+            <div id="mk-output-wrap" style="display:none;margin-top:14px;">
+              <div class="sec-label">Generated Description</div>
+              <textarea id="mk-output-text" readonly style="min-height:160px;"></textarea>
+              <div class="row" style="margin-top:8px;">
+                <button class="btn teal full" onclick="mkCopyOutput()">⬆ Copy / Share</button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
   </div><!-- /main -->
 
   <!-- ── DEVKIT ELEMENTS ── -->
@@ -2116,7 +2272,9 @@
 var AK = {
   screen: 'projects',
   projects: [],       // [{id, name, version, repo, notes, created, status}]
-  registry: [],       // [{id, projectId, elId, elType, label, status, note, version, ts}]
+  registry: [],       // [{id, projectId, elId, elType, label, status, note, version, ts}] — LEGACY, migrated into registryBaseline on load
+  registryBaseline: {}, // { [projectId]: { lockedAt, version, elements: [{id, elId, elType, name, screen, fn, note, status, ts}] } }
+  changelog: {},      // { [projectId]: [{ id, ts, version, added:[], removed:[], restored:[], modified:[], notes }] }
   log: [],            // [{id, ts, cat, msg, screen, ref, projectId}]
   activeProject: null,
   regFilter: 'all',
@@ -2125,16 +2283,45 @@ var AK = {
   logRef: null,
   lastDiff: null,
   lastScan: null,
+  lastPromoteDiff: null,
 
   STORAGE_KEY: 'auditkit_v1',
 
   save: function() {
+    this.writeBackRegistryToBaseline();
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify({
       projects: this.projects,
       registry: this.registry,
+      registryBaseline: this.registryBaseline,
+      changelog: this.changelog,
       log: this.log,
       activeProject: this.activeProject
     }));
+  },
+
+  // ── Write-through: any function that edits AK.registry directly (status changes,
+  // notes, manually added objects/screens) gets reflected back into registryBaseline
+  // here, so the baseline never silently drifts from what the UI shows.
+  writeBackRegistryToBaseline: function() {
+    var self = this;
+    var byProj = {};
+    this.registry.forEach(function(r) {
+      if(!byProj[r.projectId]) byProj[r.projectId] = [];
+      byProj[r.projectId].push(r);
+    });
+    Object.keys(byProj).forEach(function(pid) {
+      var existing = self.registryBaseline[pid];
+      self.registryBaseline[pid] = {
+        lockedAt: existing ? existing.lockedAt : new Date().toISOString(),
+        version: existing ? existing.version : '',
+        elements: byProj[pid].map(function(r) {
+          return {
+            id: r.id, elId: r.elId, elType: r.elType, name: r.name, screen: r.screen || 'global',
+            fn: r.fn || '', note: r.note || '', status: r.status, ts: r.ts
+          };
+        })
+      };
+    });
   },
 
   load: function() {
@@ -2142,9 +2329,59 @@ var AK = {
       var d = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '{}');
       this.projects = d.projects || [];
       this.registry = d.registry || [];
+      this.registryBaseline = d.registryBaseline || {};
+      this.changelog = d.changelog || {};
       this.log = d.log || [];
       this.activeProject = d.activeProject || null;
     } catch(e) {}
+    this.migrateLegacyRegistry();
+  },
+
+  // ── One-time migration: old flat AK.registry rows become each project's
+  // initial locked baseline, if that project doesn't have one yet.
+  // 'missing' items are dropped from the baseline (they weren't really there)
+  // but preserved in a synthetic "(migrated)" changelog entry so nothing is lost silently.
+  migrateLegacyRegistry: function() {
+    if(!this.registry.length) return;
+    var self = this;
+    var byProj = {};
+    this.registry.forEach(function(r) {
+      if(!byProj[r.projectId]) byProj[r.projectId] = [];
+      byProj[r.projectId].push(r);
+    });
+    var migratedAny = false;
+    Object.keys(byProj).forEach(function(pid) {
+      if(self.registryBaseline[pid]) return; // already has a real baseline — don't touch
+      var rows = byProj[pid];
+      var kept = rows.filter(function(r){ return r.status !== 'missing'; });
+      var missing = rows.filter(function(r){ return r.status === 'missing'; });
+      var proj = self.projects.find(function(p){ return p.id == pid; });
+      self.registryBaseline[pid] = {
+        lockedAt: new Date().toISOString(),
+        version: proj ? proj.version : 'migrated',
+        elements: kept.map(function(r) {
+          return {
+            id: r.id, elId: r.elId, elType: normElType(r.elType), name: r.name || r.elId,
+            screen: r.screen || 'global', fn: r.fn || '', note: r.note || '', status: r.status || 'ok', ts: r.ts
+          };
+        })
+      };
+      if(!self.changelog[pid]) self.changelog[pid] = [];
+      self.changelog[pid].push({
+        id: Date.now() + Math.random(),
+        ts: new Date().toISOString(),
+        version: proj ? proj.version : 'migrated',
+        added: [], removed: [], restored: [], modified: [],
+        notes: 'Migrated from legacy registry — ' + kept.length + ' carried into baseline' +
+          (missing.length ? ', ' + missing.length + ' previously-missing item(s) dropped (' + missing.map(function(r){return r.name||r.elId;}).join(', ') + ')' : '')
+      });
+      migratedAny = true;
+    });
+    if(migratedAny) {
+      var self2 = this;
+      Object.keys(this.registryBaseline).forEach(function(pid){ syncRegistryMirror(parseInt(pid)); });
+      this.save();
+    }
   }
 };
 
@@ -2155,13 +2392,14 @@ function showScreen(name) {
   AK.screen = name;
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.querySelectorAll('.nav-tab').forEach(function(t){ t.classList.remove('active'); });
-  var screens = { projects: 0, audit: 1, registry: 2, log: 3 };
+  var screens = { projects: 0, audit: 1, registry: 2, log: 3, mockup: 4 };
   document.getElementById('screen-' + name).classList.add('active');
   document.querySelectorAll('.nav-tab')[screens[name]].classList.add('active');
   if(name === 'registry') renderRegistry();
   if(name === 'log') renderLogEntries();
   if(name === 'projects') renderProjects();
   if(name === 'audit') { populateAuditSelects(); initAiPanel(); }
+  if(name === 'mockup') mkInit();
   dkRenderState();
 }
 
@@ -2329,6 +2567,8 @@ function deleteProject(id) {
   if(!confirm('Delete this project and all its registry entries?')) return;
   AK.projects = AK.projects.filter(function(p){ return p.id !== id; });
   AK.registry = AK.registry.filter(function(r){ return r.projectId !== id; });
+  delete AK.registryBaseline[id];
+  delete AK.changelog[id];
   if(AK.activeProject === id) AK.activeProject = null;
   AK.save();
   renderProjects();
@@ -2535,7 +2775,7 @@ function exportDiff() {
 
 // ── Auto-load baseline HTML into Slot A when project is selected
 function auditSelectProject() {
-  populateAuditSelects();
+  populateAllProjectSelects();
   var projId = parseInt(document.getElementById('audit-project-sel').value);
   if(!projId) return;
 
@@ -2550,12 +2790,7 @@ function auditSelectProject() {
   if(baseline) {
     document.getElementById('html-a').value = baseline;
     document.getElementById('html-a').style.display = 'none';
-    var info = document.getElementById('slot-a-info');
-    info.textContent = '✓ Baseline: ' + (proj ? proj.name : 'project') + ' — ' + Math.round(baseline.length/1024) + ' KB (auto-loaded)';
-    info.style.display = 'block';
-    var zone = document.getElementById('drop-a');
-    zone.textContent = '✓ Baseline loaded';
-    zone.classList.add('has-file');
+    markSlotFulfilled('a', 'Baseline loaded', baseline.length);
     toast('Baseline auto-loaded for ' + (proj ? proj.name : 'project'));
   }
 }
@@ -2717,8 +2952,31 @@ function toggleSlotPaste(slot) {
   var ta = document.getElementById('html-' + slot);
   var btn = document.getElementById('slot-' + slot + '-paste-btn');
   var showing = ta.style.display !== 'none';
-  ta.style.display = showing ? 'none' : 'block';
+  if(showing) {
+    // Collapsing the paste area — if it has content, show it as fulfilled (same as File/Drop)
+    ta.style.display = 'none';
+    if(ta.value.trim()) {
+      markSlotFulfilled(slot, 'Pasted', ta.value.length);
+    }
+  } else {
+    ta.style.display = 'block';
+  }
   btn.textContent = showing ? '✎ Paste instead' : '▲ Hide paste area';
+}
+
+// ── Live update while pasting/typing, so the slot reflects fulfilled state
+// without waiting for the user to remember to tap "Hide paste area"
+function onSlotPasteInput(slot) {
+  var ta = document.getElementById('html-' + slot);
+  if(ta.value.trim()) {
+    markSlotFulfilled(slot, 'Pasted', ta.value.length);
+  } else {
+    var info = document.getElementById('slot-' + slot + '-info');
+    info.style.display = 'none'; info.textContent = '';
+    var zone = document.getElementById('drop-' + slot);
+    zone.textContent = 'Drop .html or tap to browse';
+    zone.classList.remove('has-file');
+  }
 }
 
 function clearAudit() {
@@ -2737,9 +2995,20 @@ function clearAudit() {
   document.getElementById('audit-clear-btn').style.display = 'none';
   document.getElementById('diff-expected-card').style.display = 'none';
   document.getElementById('code-diff-card').style.display = 'none';
+  document.getElementById('reg-guidance-card').style.display = 'none';
   resetAiPanel();
   AK.lastDiff = null;
   toast('Audit cleared');
+}
+
+// ── Shared "this slot has content" UI state — used by File, Drop, and Paste
+function markSlotFulfilled(slot, label, charCount) {
+  var info = document.getElementById('slot-' + slot + '-info');
+  info.textContent = '✓ ' + label + ' — ' + Math.round(charCount / 1024) + ' KB';
+  info.style.display = 'block';
+  var zone = document.getElementById('drop-' + slot);
+  zone.textContent = '✓ ' + label;
+  zone.classList.add('has-file');
 }
 
 function loadFile(slot, input) {
@@ -2750,12 +3019,7 @@ function loadFile(slot, input) {
     document.getElementById('html-' + slot).value = e.target.result;
     // Don't show the textarea — show a compact info chip instead
     document.getElementById('html-' + slot).style.display = 'none';
-    var info = document.getElementById('slot-' + slot + '-info');
-    info.textContent = '✓ ' + file.name + ' — ' + Math.round(e.target.result.length / 1024) + ' KB';
-    info.style.display = 'block';
-    var zone = document.getElementById('drop-' + slot);
-    zone.textContent = '✓ ' + file.name;
-    zone.classList.add('has-file');
+    markSlotFulfilled(slot, file.name, e.target.result.length);
     toast('Loaded: ' + file.name);
   };
   reader.readAsText(file);
@@ -2771,12 +3035,7 @@ function dropFile(slot, e) {
   reader.onload = function(ev) {
     document.getElementById('html-' + slot).value = ev.target.result;
     document.getElementById('html-' + slot).style.display = 'none';
-    var info = document.getElementById('slot-' + slot + '-info');
-    info.textContent = '✓ ' + file.name + ' — ' + Math.round(ev.target.result.length / 1024) + ' KB';
-    info.style.display = 'block';
-    var zone = document.getElementById('drop-' + slot);
-    zone.textContent = '✓ ' + file.name;
-    zone.classList.add('has-file');
+    markSlotFulfilled(slot, file.name, ev.target.result.length);
     toast('Loaded: ' + file.name);
   };
   reader.readAsText(file);
@@ -2917,6 +3176,71 @@ function toggleCodeDiffPanel() {
   chev.textContent = open ? '▼' : '▲';
 }
 
+// ── Normalize a raw parsed type (e.g. 'button', 'div[id]', 'input[type=checkbox]')
+// into one of the TYPE_META category keys (BUTTON, INPUT, CARD, MODAL, NAV, CHIP, TILE, OTHER).
+// This is the function that previously existed, was lost in a rewrite, and caused
+// synced/scanned registry items to render with generic icons and broken type grouping.
+// ── Keeps the legacy flat AK.registry array in sync with the new baseline model.
+// All existing render/edit/export code reads AK.registry directly; rather than
+// rewrite every call site, this mirrors the active baseline's elements into it
+// (scoped to one project at a time) whenever the baseline changes.
+function syncRegistryMirror(projId) {
+  AK.registry = AK.registry.filter(function(r){ return r.projectId != projId; });
+  var baseline = AK.registryBaseline[projId];
+  if(!baseline) return;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  baseline.elements.forEach(function(e) {
+    AK.registry.push({
+      id: e.id, projectId: projId, screen: e.screen || 'global', name: e.name, elType: e.elType,
+      elId: e.elId, fn: e.fn || '', note: e.note || '', status: e.status, version: baseline.version,
+      ts: e.ts
+    });
+  });
+}
+
+function normElType(raw) {
+  if(!raw) return 'OTHER';
+  var s = String(raw).toLowerCase();
+  var tag = s.split('[')[0];
+  if(tag === 'button') return 'BUTTON';
+  if(tag === 'input' || tag === 'select' || tag === 'textarea') return 'INPUT';
+  if(tag === 'a' || tag === 'nav') return 'NAV';
+  if(s.indexOf('modal') !== -1 || s.indexOf('dialog') !== -1) return 'MODAL';
+  if(s.indexOf('chip') !== -1) return 'CHIP';
+  if(s.indexOf('tile') !== -1) return 'TILE';
+  if(s.indexOf('card') !== -1) return 'CARD';
+  if(tag === 'section' || tag === 'div' || tag === 'span') {
+    // onclick-bearing divs/spans without other signal are usually buttons or cards;
+    // default to CARD since that's the more common container use, OTHER otherwise
+    return s.indexOf('onclick') !== -1 ? 'BUTTON' : 'OTHER';
+  }
+  if(tag === 'header' || tag === 'footer' || tag === 'main' || tag === 'aside') return 'OTHER';
+  return 'OTHER';
+}
+
+// ── Best-effort screen detection: walk up from an element looking for an
+// ancestor that looks like a screen container. Falls back to 'global'.
+function detectScreen(el) {
+  var node = el;
+  var depth = 0;
+  while(node && node.nodeType === 1 && depth < 12) {
+    var id = node.id || '';
+    var ds = node.getAttribute ? (node.getAttribute('data-screen') || '') : '';
+    var cls = (node.className && typeof node.className === 'string') ? node.className : '';
+    if(ds) return ds;
+    if(/^s-[\w-]+$/.test(id)) return id;
+    if(/^screen-[\w-]+$/.test(id)) return id;
+    if(/^screen[\w-]*$/i.test(id) && id.toLowerCase() !== 'screen') return id;
+    if(/\bscreen\b/i.test(cls) && (node.tagName === 'SECTION' || node.tagName === 'DIV' || node.tagName === 'MAIN')) {
+      if(id) return id;
+    }
+    if((node.tagName === 'SECTION' || node.tagName === 'MAIN') && id) return id;
+    node = node.parentElement;
+    depth++;
+  }
+  return 'global';
+}
+
 function parseHTML(src) {
   var parser = new DOMParser();
   var doc = parser.parseFromString(src, 'text/html');
@@ -2929,14 +3253,29 @@ function parseHTML(src) {
       ? '.' + el.className.trim().split(/\s+/)[0]
       : null;
     var key = id || cls || el.tagName.toLowerCase();
-    var rawLabel = (el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
+    // Only this element's OWN direct text (not nested children's text) — a container
+    // <div> wrapping buttons/spans should not have its label be the concatenation of
+    // everything inside it.
+    var ownText = Array.prototype.slice.call(el.childNodes)
+      .filter(function(n){ return n.nodeType === 3; }) // TEXT_NODE
+      .map(function(n){ return n.textContent; })
+      .join(' ');
+    // For genuinely leaf-ish elements (button, a, label-like) with no element children,
+    // textContent is safe and often more complete than just direct text nodes.
+    var isLeafy = el.children.length === 0;
+    var rawLabel = (isLeafy ? (el.textContent || '') : ownText).trim().replace(/\s+/g,' ').slice(0, 60);
     // Filter out label noise: pure arrows, single chars, long code blobs
     var label = rawLabel.length > 1 && !/^[←→↑↓\-–—<>\/\\|]{1,3}$/.test(rawLabel)
       ? rawLabel
       : el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('aria-label') || el.getAttribute('name') || '';
     var type = el.tagName.toLowerCase();
     if(el.getAttribute('type')) type += '[' + el.getAttribute('type') + ']';
-    elements.push({ key: key, id: id, cls: cls, type: type, label: label, tag: el.tagName.toLowerCase() });
+    var hasOnclick = el.hasAttribute('onclick') ? '[onclick]' : '';
+    elements.push({
+      key: key, id: id, cls: cls, type: type, label: label, tag: el.tagName.toLowerCase(),
+      normType: normElType(type + hasOnclick),
+      screen: detectScreen(el)
+    });
   });
 
   var seen = {};
@@ -2966,9 +3305,10 @@ function runAudit() {
     if(!mapB[k]) removed.push(mapA[k]);
   });
 
-  // Classify changes: "unexpected" = elements that were in the known registry as OK/stable but are now removed or changed
+  // Classify changes: "unexpected" = elements that are in the locked baseline as OK/stable but are now removed or changed
   var projId = parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
-  var knownOk = AK.registry.filter(function(r){ return r.projectId == projId && (r.status === 'ok' || r.status === 'resolved'); });
+  var baseline = AK.registryBaseline[projId];
+  var knownOk = baseline ? baseline.elements.filter(function(r){ return r.status === 'ok' || r.status === 'resolved'; }) : [];
   var unexpected = removed.filter(function(e){
     return knownOk.some(function(r){ return r.elId === e.key; });
   });
@@ -3048,48 +3388,266 @@ function runAudit() {
     document.getElementById('code-diff-chevron').textContent = '▲';
   }
 
+  renderRegGuidance(projId, added, removed, changed, unexpected);
+
   toast('Gap analysis complete — ' + (added.length + removed.length + changed.length) + ' element diff, ' + codeChanges + ' code changes');
 }
 
-// syncRegistry and showBaselineOptions — kept below with full implementations
+// ── Plain-English guidance shown right after a Gap Analysis, pointing toward
+// the right next action (Promote to Stable) given what was actually found.
+function renderRegGuidance(projId, added, removed, changed, unexpected) {
+  var card = document.getElementById('reg-guidance-card');
+  var body = document.getElementById('reg-guidance-body');
+  var baseline = AK.registryBaseline[projId];
+  var totalChanges = added.length + removed.length + changed.length;
 
-function syncRegistry() {
+  var html = '';
+  if(!baseline || !baseline.elements.length) {
+    html =
+      '<div style="color:var(--t1);font-weight:600;margin-bottom:4px">🗺 No registry baseline yet for this project</div>' +
+      '<div style="color:var(--t2)">Once you\'re happy with this version, tap <strong style="color:var(--green)">✓ Promote to Stable</strong> below — ' +
+      'since there\'s no baseline yet, everything in Version B will become the starting point.</div>';
+  } else if(unexpected.length) {
+    html =
+      '<div style="color:var(--red);font-weight:600;margin-bottom:4px">⚠ ' + unexpected.length + ' element' + (unexpected.length===1?'':'s') + ' that were working are now missing</div>' +
+      '<div style="color:var(--t2)">Check the <strong>Review Required</strong> section below first — these look like accidental regressions, not intentional changes. ' +
+      'Once you\'ve confirmed what\'s real, tap <strong style="color:var(--green)">✓ Promote to Stable</strong> — you\'ll get a chance to mark each one as intentional or flag it for restore before anything is locked in.</div>';
+  } else if(totalChanges === 0) {
+    html =
+      '<div style="color:var(--t1);font-weight:600;margin-bottom:4px">✓ No changes vs. your locked baseline</div>' +
+      '<div style="color:var(--t2)">This version matches what\'s already on record. No need to promote — the registry is already up to date.</div>';
+  } else {
+    html =
+      '<div style="color:var(--t1);font-weight:600;margin-bottom:4px">✓ ' + totalChanges + ' change' + (totalChanges===1?'':'s') + ' found, nothing looks irregular</div>' +
+      '<div style="color:var(--t2)">When you\'re ready to lock this in, tap <strong style="color:var(--green)">✓ Promote to Stable</strong> below. ' +
+      'That updates your registry baseline to match this version and logs the change to the Changelog — so you can always look back and see what moved.</div>';
+  }
+  body.innerHTML = html;
+  card.style.display = 'block';
+}
+
+
+// ── Promote to Stable: the deliberate "this is now my new known-good version" action.
+// Diffs the just-audited Slot B against the LOCKED baseline (not the legacy registry),
+// offers optional per-item triage, writes one changelog entry, then replaces the baseline.
+function promoteToStable() {
   if(!AK.lastDiff) { toast('Run a gap analysis first'); return; }
   var projId = AK.lastDiff.projId || parseInt(document.getElementById('audit-project-sel').value) || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id === projId; });
-  var version = proj ? proj.version : 'unknown';
-  var added = 0, flagged = 0;
-  AK.lastDiff.elsB.forEach(function(e) {
-    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
-    if(!exists) {
-      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
-        note: 'Added in ' + version, status: 'changed', version: version, ts: new Date().toISOString() });
-      added++;
-    }
+  if(!proj) { toast('Select a project first'); return; }
+  var baseline = AK.registryBaseline[projId];
+  var baseEls = baseline ? baseline.elements : [];
+  var baseMap = {}; baseEls.forEach(function(r){ baseMap[r.elId] = r; });
+  var elsB = AK.lastDiff.elsB;
+  var mapB = {}; elsB.forEach(function(e){ mapB[e.key] = e; });
+
+  var added = [], removed = [], restored = [], modified = [];
+  elsB.forEach(function(e) {
+    var prior = baseMap[e.key];
+    if(!prior) { added.push(e); }
+    else if(prior.status === 'missing') { restored.push(e); }
+    else if(prior.elType !== e.normType) { modified.push(e); }
   });
-  AK.lastDiff.removed.forEach(function(e) {
-    var exists = AK.registry.find(function(r){ return r.elId === e.key && r.projectId == projId; });
-    if(exists && exists.status !== 'missing') {
-      exists.status = 'missing';
-      exists.note = (exists.note ? exists.note + ' | ' : '') + 'Not found in ' + version;
-      flagged++;
-    }
+  baseEls.forEach(function(r) {
+    if(r.status === 'missing') return; // already gone, nothing new to report
+    if(!mapB[r.elId]) removed.push(r);
   });
-  AK.save();
-  showScreen('registry');
-  toast('Registry synced — ' + added + ' added, ' + flagged + ' flagged');
+
+  AK.lastPromoteDiff = { projId: projId, added: added, removed: removed, restored: restored, modified: modified, elsB: elsB };
+
+  var totalChanges = added.length + removed.length + restored.length + modified.length;
+  if(totalChanges === 0) {
+    finalizePromotion(projId, {}); 
+    return;
+  }
+  showPromoteTriageModal(projId);
 }
+
+function showPromoteTriageModal(projId) {
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var d = AK.lastPromoteDiff;
+  var rows = '';
+  d.added.forEach(function(e, i) {
+    rows += promoteTriageRow('added', i, '+ Added', e.key, e.label);
+  });
+  d.removed.forEach(function(r, i) {
+    rows += promoteTriageRow('removed', i, '− Removed', r.elId, r.name);
+  });
+  d.restored.forEach(function(e, i) {
+    rows += promoteTriageRow('restored', i, '↺ Restored', e.key, e.label);
+  });
+  d.modified.forEach(function(e, i) {
+    rows += promoteTriageRow('modified', i, '~ Modified', e.key, e.label);
+  });
+
+  openModal(
+    '✓ Promote — ' + (proj ? proj.name : 'Project'),
+    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
+      'Triage is optional — mark items if you want, or just tap Promote to log everything as-is. ' +
+      'Marking <strong>Restore</strong> just notes your intent here; it does not change your HTML file.' +
+    '</div>' +
+    '<div id="promote-triage-list" class="col" style="gap:6px;max-height:50vh;overflow-y:auto">' + rows + '</div>',
+    '<button class="btn teal" onclick="confirmPromote(' + projId + ')">✓ Promote to Stable</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function promoteTriageRow(kind, idx, label, key, name) {
+  var color = kind === 'added' ? 'var(--green)' : kind === 'removed' ? 'var(--red)' : kind === 'restored' ? 'var(--blue)' : 'var(--amber)';
+  return '<div class="card" style="padding:8px 10px">' +
+    '<div style="font-size:11px;color:' + color + ';font-weight:600">' + label + '</div>' +
+    '<div style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _esc(name || key) + '</div>' +
+    '<div style="font-size:10px;color:var(--t3);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _esc(key) + '</div>' +
+    '<select id="triage-' + kind + '-' + idx + '" style="width:100%;height:26px;font-size:11px">' +
+      '<option value="">No triage note</option>' +
+      '<option value="intentional">Intentional</option>' +
+      (kind === 'removed' ? '<option value="restore">Accidental — restore</option>' : '') +
+      '<option value="review">Needs review</option>' +
+    '</select>' +
+  '</div>';
+}
+
+function confirmPromote(projId) {
+  var d = AK.lastPromoteDiff;
+  var triage = {};
+  ['added','removed','restored','modified'].forEach(function(kind) {
+    var arr = d[kind];
+    arr.forEach(function(item, i) {
+      var sel = document.getElementById('triage-' + kind + '-' + i);
+      var key = item.key || item.elId;
+      if(sel && sel.value) triage[kind + ':' + key] = sel.value;
+    });
+  });
+  finalizePromotion(projId, triage);
+}
+
+function finalizePromotion(projId, triage) {
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var version = proj ? proj.version : 'unknown';
+  var d = AK.lastPromoteDiff || { added: [], removed: [], restored: [], modified: [], elsB: AK.lastDiff ? AK.lastDiff.elsB : [] };
+
+  function noteFor(kind, key) {
+    var t = triage[kind + ':' + key];
+    if(t === 'intentional') return 'Marked intentional at promotion';
+    if(t === 'restore') return 'Flagged for restore at promotion';
+    if(t === 'review') return 'Flagged for review at promotion';
+    return '';
+  }
+
+  // Build the new baseline element set from elsB (current truth), carrying forward
+  // notes/fn from prior baseline entries where the element still exists.
+  var oldBaseline = AK.registryBaseline[projId];
+  var oldMap = {};
+  if(oldBaseline) oldBaseline.elements.forEach(function(r){ oldMap[r.elId] = r; });
+
+  var newElements = (d.elsB || []).map(function(e) {
+    var prior = oldMap[e.key];
+    var triageNote = noteFor('added', e.key) || noteFor('restored', e.key) || noteFor('modified', e.key);
+    return {
+      id: prior ? prior.id : (Date.now() + Math.random()),
+      elId: e.key, elType: e.normType, name: e.label || (prior ? prior.name : e.key),
+      screen: e.screen || (prior ? prior.screen : 'global'),
+      fn: prior ? prior.fn : '',
+      note: triageNote || (prior ? prior.note : ''),
+      status: 'ok', ts: new Date().toISOString()
+    };
+  });
+  // Carry forward removed-but-not-restored items as 'missing' so they remain visible/trackable
+  (d.removed || []).forEach(function(r) {
+    var t = triage['removed:' + r.elId];
+    if(t === 'restore') return; // flagged for restore — don't carry as missing, you intend to bring it back
+    newElements.push({
+      id: r.id || (Date.now() + Math.random()), elId: r.elId, elType: r.elType, name: r.name,
+      screen: r.screen, fn: r.fn || '', note: noteFor('removed', r.elId) || r.note || '',
+      status: 'missing', ts: new Date().toISOString()
+    });
+  });
+
+  AK.registryBaseline[projId] = { lockedAt: new Date().toISOString(), version: version, elements: newElements };
+  syncRegistryMirror(projId);
+
+  if(!AK.changelog[projId]) AK.changelog[projId] = [];
+  AK.changelog[projId].unshift({
+    id: Date.now() + Math.random(),
+    ts: new Date().toISOString(),
+    version: version,
+    added: (d.added||[]).map(function(e){ return { key: e.key, name: e.label || e.key, note: noteFor('added', e.key) }; }),
+    removed: (d.removed||[]).map(function(r){ return { key: r.elId, name: r.name, note: noteFor('removed', r.elId) }; }),
+    restored: (d.restored||[]).map(function(e){ return { key: e.key, name: e.label || e.key, note: noteFor('restored', e.key) }; }),
+    modified: (d.modified||[]).map(function(e){ return { key: e.key, name: e.label || e.key, note: noteFor('modified', e.key) }; }),
+    notes: ''
+  });
+
+  AK.save();
+  closeModal();
+  showScreen('registry');
+  var total = newElements.length;
+  toast('Promoted — baseline now ' + total + ' elements (' + (d.added||[]).length + ' added, ' + (d.removed||[]).length + ' removed, ' + (d.restored||[]).length + ' restored, ' + (d.modified||[]).length + ' modified)');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CHANGELOG — per-project promotion history
+// ════════════════════════════════════════════════════════════════
+function showChangelog() {
+  var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  if(!proj) { toast('Select a project first'); return; }
+  var entries = (AK.changelog[projId] || []).slice();
+
+  var body;
+  if(!entries.length) {
+    body = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj.name) + '.<br>' +
+      '<span style="color:var(--t2)">Run a Gap Analysis and tap <strong>✓ Promote to Stable</strong> to start tracking changes.</span></div>';
+  } else {
+    body = '<div class="col" style="gap:10px;max-height:60vh;overflow-y:auto">' +
+      entries.map(function(e){ return renderChangelogEntry(e); }).join('') +
+    '</div>';
+  }
+
+  openModal('📜 Changelog — ' + proj.name, body, '<button class="btn" onclick="closeModal()">Close</button>');
+}
+
+function renderChangelogEntry(e) {
+  var total = (e.added||[]).length + (e.removed||[]).length + (e.restored||[]).length + (e.modified||[]).length;
+  var section = function(items, label, color) {
+    if(!items || !items.length) return '';
+    return '<div style="margin-top:6px">' +
+      '<div style="font-size:10px;color:' + color + ';font-weight:600;text-transform:uppercase;letter-spacing:0.03em">' + label + ' (' + items.length + ')</div>' +
+      items.map(function(i){
+        return '<div style="font-size:11px;color:var(--t1);padding:2px 0 2px 8px;border-left:2px solid ' + color + '">' +
+          _esc(i.name || i.key) + (i.note ? ' <span style="color:var(--t3)">— ' + _esc(i.note) + '</span>' : '') +
+        '</div>';
+      }).join('') +
+    '</div>';
+  };
+  return '<div class="card" style="padding:10px 12px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline">' +
+      '<span style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(e.version || 'unversioned') + '</span>' +
+      '<span style="font-size:10px;color:var(--t3)">' + fmtDate(e.ts) + '</span>' +
+    '</div>' +
+    (total === 0 && !e.notes ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">No changes vs. previous baseline.</div>' : '') +
+    (e.notes ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">' + _esc(e.notes) + '</div>' : '') +
+    section(e.added, 'Added', 'var(--green)') +
+    section(e.removed, 'Removed', 'var(--red)') +
+    section(e.restored, 'Restored', 'var(--blue)') +
+    section(e.modified, 'Modified', 'var(--amber)') +
+  '</div>';
+}
+
 
 function showBaselineOptions() {
   var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id == projId; });
   if(!proj) { toast('Select a project first'); return; }
+  var existing = AK.registryBaseline[projId];
   openModal(
-    'Set Baseline — ' + proj.name,
+    '⊙ Lock Baseline — ' + proj.name,
     '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
-      'Scan an HTML file to auto-discover elements and add them to the map. ' +
-      'Existing named objects are kept; new raw elements are added as <em>Updated</em>.' +
+      'Scans an HTML file and sets it as this project\'s <strong>locked baseline</strong> — ' +
+      'the reference point future Gap Analysis and Promote checks compare against. ' +
+      (existing
+        ? '<span style="color:var(--amber)">This project already has a locked baseline (' + existing.elements.length + ' elements, locked ' + fmtDate(existing.lockedAt) + '). Locking again will fully replace it.</span>'
+        : 'This is the first lock for this project.') +
     '</div>' +
     '<div class="col">' +
       '<div class="sec-label">Load HTML File</div>' +
@@ -3100,7 +3658,7 @@ function showBaselineOptions() {
     '<div style="margin-top:8px;padding:8px;background:var(--teal-dim);border:1px solid var(--teal-border);border-radius:6px;font-size:11px;color:var(--teal)">' +
       '🎳 Using BowlingDB? Tap <strong>Load BowlingDB Template</strong> for a fully hand-named map instead.' +
     '</div>',
-    '<button class="btn teal" onclick="applyBaseline(' + proj.id + ')">⊙ Scan & Add</button>' +
+    '<button class="btn teal" onclick="lockBaseline(' + proj.id + ')">⊙ Lock Baseline</button>' +
     '<button class="btn amber" onclick="closeModal();showBowlingDBSeedOption()">🎳 BowlingDB Template</button>' +
     '<button class="btn" onclick="closeModal()">Cancel</button>'
   );
@@ -3115,24 +3673,29 @@ function showBaselineOptions() {
   }, 100);
 }
 
-function applyBaseline(projId) {
+// ── Lock Baseline: fully replaces the project's locked registry snapshot.
+// Distinct from Promote — this can be run any time to (re)establish a known-good
+// reference, independent of pushing to GitHub.
+function lockBaseline(projId) {
   var src = document.getElementById('baseline-paste').value.trim();
   if(!src) { toast('Load or paste HTML first'); return; }
   var proj = AK.projects.find(function(p){ return p.id === projId; });
   var version = proj ? proj.version : 'baseline';
   var els = parseHTML(src);
-  var added = 0;
-  els.forEach(function(e) {
-    var exists = AK.registry.find(function(r){ return r.projectId == projId && r.elId === e.key; });
-    if(!exists) {
-      AK.registry.push({ id: Date.now() + Math.random(), projectId: projId,
-        screen: 'global', name: e.key, elType: e.type, elId: e.key, fn: '',
-        note: 'Auto-scanned', status: 'ok', version: version, ts: new Date().toISOString() });
-      added++;
-    }
+  var elements = els.map(function(e) {
+    return {
+      id: Date.now() + Math.random(), elId: e.key, elType: e.normType, name: e.label || e.key,
+      screen: e.screen || 'global', fn: '', note: '', status: 'ok', ts: new Date().toISOString()
+    };
   });
+  AK.registryBaseline[projId] = {
+    lockedAt: new Date().toISOString(),
+    version: version,
+    elements: elements
+  };
+  syncRegistryMirror(projId);
   AK.save(); closeModal(); renderRegistryScreens();
-  toast('Added ' + added + ' elements for ' + (proj ? proj.name : 'project'));
+  toast('Baseline locked — ' + elements.length + ' elements for ' + (proj ? proj.name : 'project'));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3426,7 +3989,7 @@ function renderRegistryScreens() {
     grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:30px">' +
       '<span class="empty-state-icon">🗺</span>' +
       'No elements mapped yet.<br>' +
-      '<span style="color:var(--t2)">Use <strong>⊙ Set Baseline</strong> to auto-scan from HTML,<br>' +
+      '<span style="color:var(--t2)">Use <strong>⊙ Lock Baseline</strong> to auto-scan from HTML,<br>' +
       'or <strong>load the BowlingDB template</strong> if this is that project.</span><br><br>' +
       '<button class="btn teal" onclick="showBowlingDBSeedOption()">🎳 Load BowlingDB Template</button>' +
     '</div>';
@@ -3599,6 +4162,13 @@ function renderRegDrawer(r, safeId) {
       (r.fn ? '<div class="reg-obj-drawer-meta-item" style="grid-column:1/-1"><div class="reg-obj-drawer-meta-label">Function</div>' +
         '<div class="reg-obj-drawer-meta-val mono">' + _esc(r.fn) + '()</div></div>' : '') +
     '</div>' +
+    '<div class="reg-obj-drawer-meta-label" style="margin-top:8px">Screen (auto-detected — change if wrong)</div>' +
+    '<select onclick="event.stopPropagation()" onchange="setRegObjScreen(' + safeId + ', this.value)" style="width:100%;height:30px;font-size:12px;margin-bottom:4px">' +
+      Object.keys(SCREEN_META).map(function(s) {
+        return '<option value="' + s + '"' + (r.screen===s?' selected':'') + '>' + SCREEN_META[s].icon + ' ' + SCREEN_META[s].name + '</option>';
+      }).join('') +
+      (SCREEN_META[r.screen] ? '' : '<option value="' + _esc(r.screen) + '" selected>' + _esc(r.screen) + '</option>') +
+    '</select>' +
     '<div class="reg-status-grid">' +
       Object.keys(STATUS_INFO).map(function(s) {
         var ssi = STATUS_INFO[s];
@@ -3633,6 +4203,18 @@ function setRegObjStatus(id, status) {
 function setRegObjNote(id, note) {
   var r = AK.registry.find(function(x){ return x.id == id; });
   if(r) { r.note = note; AK.save(); }
+}
+
+// ── Manual override for auto-detected screen assignment (detectScreen is best-effort)
+function setRegObjScreen(id, screenId) {
+  var r = AK.registry.find(function(x){ return x.id == id; });
+  if(!r || !screenId) return;
+  r.screen = screenId;
+  AK.save();
+  REG_SELECTED_SCREEN = screenId;
+  regBackToScreens();
+  showRegScreen(screenId);
+  toast('Moved to ' + (SCREEN_META[screenId] ? SCREEN_META[screenId].name : screenId));
 }
 
 function setRegTypeFilter(t, btn) {
@@ -3831,128 +4413,16 @@ async function triggerAiNamingPass() {
 
 // ── Export
 function doExportRegistry() {
-  var data = JSON.stringify({ _auditkit:true, _exported:new Date().toISOString(), registry:AK.registry, projects:AK.projects }, null, 2);
+  var data = JSON.stringify({ _auditkit:true, _exported:new Date().toISOString(), registry:AK.registry, changelog:AK.changelog, projects:AK.projects }, null, 2);
   copyOrShare(data, 'auditkit-registry.json');
 }
 
-function renderRegistry() {
-  var projId = document.getElementById('reg-project-sel').value;
-  var allItems = AK.registry.filter(function(r) {
-    return !projId || r.projectId == projId;
-  });
-  var items = REG_FILTER === 'all' ? allItems : allItems.filter(function(r){ return r.status === REG_FILTER; });
-
-  // TABLE (desktop)
-  var tbody = document.getElementById('registry-tbody');
-  if(!items.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:20px"><span class="empty-state-icon">📋</span>' +
-      (allItems.length ? 'No elements match this filter.' : 'No elements yet. Set a baseline or run a gap analysis.') + '</div></td></tr>';
-  } else {
-    tbody.innerHTML = items.map(function(r) {
-      var proj = AK.projects.find(function(p){ return p.id === r.projectId; });
-      var ver = (r.version || '').replace(/^v+/, '');
-      var si = STATUS_INFO[r.status] || { label: r.status };
-      return '<tr>' +
-        '<td><div class="reg-el-id">' + _esc(r.elId) + '</div></td>' +
-        '<td><div class="reg-el-type">' + _esc(r.elType) + '</div></td>' +
-        '<td><div class="reg-el-label">' + _esc(r.label || '—') + '</div></td>' +
-        '<td><select class="status-select" onchange="setRegStatus(' + JSON.stringify(r.id) + ', this.value)">' +
-          Object.keys(STATUS_INFO).map(function(s){
-            return '<option value="' + s + '"' + (r.status===s?' selected':'') + '>' + STATUS_INFO[s].label + '</option>';
-          }).join('') +
-        '</select></td>' +
-        '<td class="reg-note-cell"><textarea class="inline-note-input" placeholder="Note…" onblur="setRegNote(' + JSON.stringify(r.id) + ', this.value)">' + _esc(r.note||'') + '</textarea></td>' +
-        '<td style="color:var(--t3);font-size:10px">v' + _esc(ver) + '</td>' +
-        '<td style="color:var(--t3);font-size:10px">' + _esc(proj?proj.name:'—') + '</td>' +
-      '</tr>';
-    }).join('');
-  }
-
-  // MOBILE: grouped collapsible rows with drill-down drawers
-  var cards = document.getElementById('registry-cards');
-  if(!allItems.length) {
-    cards.innerHTML = '<div class="empty-state" style="padding:30px"><span class="empty-state-icon">📋</span>No elements yet.<br>Set a Baseline or run a Gap Analysis first.</div>';
-    return;
-  }
-
-  // Build groups from ALL items (filter applied per-row for count display)
-  var groupHTML = '';
-  REG_GROUPS.forEach(function(grp) {
-    var grpAll = allItems.filter(function(r){ return regCategoryKey(r.elType) === grp.key; });
-    if(!grpAll.length) return;
-
-    // Apply filter within group
-    var grpVisible = REG_FILTER === 'all' ? grpAll : grpAll.filter(function(r){ return r.status === REG_FILTER; });
-    if(REG_FILTER !== 'all' && !grpVisible.length) return;
-
-    // Status counts
-    var counts = {};
-    grpAll.forEach(function(r){ counts[r.status] = (counts[r.status]||0)+1; });
-    var needsAttention = (counts.missing||0) + (counts.changed||0) + (counts.issue||0);
-    var isOpen = !!REG_OPEN_GROUPS[grp.key];
-
-    var countChips = '';
-    if(needsAttention) {
-      if(counts.missing) countChips += '<span class="reg-count-chip missing">' + counts.missing + ' missing</span>';
-      if(counts.changed) countChips += '<span class="reg-count-chip changed">' + counts.changed + ' updated</span>';
-      if(counts.issue)   countChips += '<span class="reg-count-chip issue">' + counts.issue + ' issue</span>';
-    } else {
-      countChips = '<span class="reg-count-chip ok">' + grpAll.length + ' working</span>';
-    }
-
-    groupHTML += '<div class="reg-group' + (isOpen?' open':'') + '" id="reg-group-' + grp.key + '">' +
-      '<div class="reg-group-header" onclick="toggleRegGroup(\'' + grp.key + '\')">' +
-        '<span class="reg-group-chevron">▶</span>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="reg-group-title">' + grp.label + '</div>' +
-          '<div class="reg-group-subtitle">' + grp.desc + '</div>' +
-        '</div>' +
-        '<div class="reg-group-counts">' + countChips + '</div>' +
-      '</div>' +
-      '<div class="reg-group-body">';
-
-    grpVisible.forEach(function(r) {
-      var label = (r.label||'').trim();
-      if(label.length <= 2 && /^[←→↑↓\-–—<>\/\\|]{1,3}$/.test(label)) label = '';
-      var ver = (r.version||'').replace(/^v+/,'');
-      var si = STATUS_INFO[r.status] || { label: r.status };
-      var isDrawerOpen = REG_OPEN_DRAWER == r.id;
-      var safeId = JSON.stringify(r.id);
-
-      groupHTML +=
-        '<div class="reg-row ' + r.status + '" onclick="toggleRegDrawer(' + safeId + ')">' +
-          '<div class="reg-row-id">' + _esc(r.elId) + '</div>' +
-          (label ? '<div class="reg-row-label">' + _esc(label) + '</div>' : '') +
-          '<div class="reg-row-status"><span class="status-pill ' + r.status + '"></span></div>' +
-        '</div>' +
-        '<div class="reg-drawer' + (isDrawerOpen?' open':'') + '" id="reg-drawer-' + r.id + '">' +
-          '<div class="reg-drawer-header">' +
-            '<div class="reg-drawer-id">' + _esc(r.elId) + '</div>' +
-            '<button class="reg-drawer-close" onclick="event.stopPropagation();toggleRegDrawer(' + safeId + ')">✕</button>' +
-          '</div>' +
-          '<div class="reg-drawer-meta">' +
-            'Type: <span>' + _esc(r.elType) + '</span> &nbsp;·&nbsp; ' +
-            'Category: <span>' + grp.label + '</span> &nbsp;·&nbsp; ' +
-            'Version: <span>v' + _esc(ver) + '</span>' +
-            (r.note ? '<br>Note: <span>' + _esc(r.note) + '</span>' : '') +
-          '</div>' +
-          (si.desc ? '<div class="reg-drawer-desc"><strong style="color:' + (STATUS_INFO[r.status]?STATUS_INFO[r.status].color:'var(--t2)') + '">' + si.label + ':</strong> ' + si.desc + '</div>' : '') +
-          '<div class="reg-status-buttons">' +
-            Object.keys(STATUS_INFO).map(function(s){
-              return '<button class="reg-status-btn' + (r.status===s?' active-'+s:'') + '" onclick="event.stopPropagation();setRegStatusFromDrawer(' + safeId + ',\'' + s + '\')">' +
-                STATUS_INFO[s].label + '</button>';
-            }).join('') +
-          '</div>' +
-          '<input type="text" class="reg-note-inline" placeholder="Add a note…" value="' + _esc(r.note||'') + '" ' +
-            'onclick="event.stopPropagation()" onblur="setRegNoteFromDrawer(' + safeId + ', this.value)">' +
-        '</div>';
-    });
-
-    groupHTML += '</div></div>'; // /reg-group-body /reg-group
-  });
-
-  cards.innerHTML = groupHTML || '<div class="empty-state" style="padding:20px">No elements match this filter.</div>';
-}
+// (Removed: a broken, never-finished legacy table/drawer renderer used to live here,
+// shadowing the working renderRegistry() alias above and crashing on every Registry
+// screen visit due to references to REG_GROUPS, regCategoryKey, toggleRegDrawer,
+// setRegStatusFromDrawer, and setRegNoteFromDrawer — none of which were ever defined.
+// The working List View is renderRegistryList(); the working Screen View is
+// renderRegistryScreens(), aliased above as renderRegistry().)
 
 // ════════════════════════════════════════════════════════════════
 //  LOG
@@ -4039,6 +4509,8 @@ function doExport() {
     _version: 'AuditKit v1.0',
     projects: AK.projects,
     registry: AK.registry,
+    registryBaseline: AK.registryBaseline,
+    changelog: AK.changelog,
     log: AK.log
   }, null, 2);
   copyOrShare(data, 'auditkit-export.json');
@@ -4096,6 +4568,18 @@ function buildAuditPrompt() {
     missingReg.forEach(function(r){ p += '- MISSING: ' + (r.name||r.elId) + (r.note?' ('+r.note+')':'') + '\n'; });
     issueReg.forEach(function(r){ p += '- ISSUE: ' + (r.name||r.elId) + (r.note?' ('+r.note+')':'') + '\n'; });
     p += '\n';
+  }
+  var lastPromo = (AK.changelog[projId] || [])[0];
+  if(lastPromo) {
+    var promoNotes = [];
+    ['added','removed','restored','modified'].forEach(function(k){
+      (lastPromo[k]||[]).forEach(function(i){ if(i.note) promoNotes.push('- ' + (i.name||i.key) + ': ' + i.note); });
+    });
+    if(promoNotes.length) {
+      p += '## Developer Intent From Last Promotion (' + lastPromo.version + ', ' + fmtDate(lastPromo.ts) + ')\n';
+      p += 'The developer already reviewed these changes at the last promotion. Treat these as ground truth for intent:\n';
+      p += promoNotes.join('\n') + '\n\n';
+    }
   }
   if(openBugs.length) {
     p += '## Open Bug/UI Log\n';
@@ -4547,10 +5031,12 @@ function dkPushMapToRegistry() {
         id: Date.now() + Math.random(),
         projectId: projId,
         elId: e.key,
-        elType: e.type,
-        label: e.label,
-        status: 'unchecked',
-        note: '',
+        elType: normElType(e.type),
+        name: e.label || e.key,
+        screen: 'global',
+        fn: '',
+        status: 'ok',
+        note: 'Added via DevKit self-scan',
         version: version,
         ts: new Date().toISOString()
       });
@@ -4559,6 +5045,331 @@ function dkPushMapToRegistry() {
   });
   AK.save();
   toast(count + ' self-scan elements pushed to Registry');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MOCKUP / REDESIGN WORKSPACE
+// ════════════════════════════════════════════════════════════════
+// v1 scope: pure annotation on a screenshot (pin or box), each annotation
+// optionally linked to a real registry entry from the active project,
+// output is a plain-English text description — no image export, no
+// persistent storage (session-scoped, lives only in MK while the
+// Mockup tab is in use).
+var MK = {
+  imageDataUrl: null,
+  imageNaturalW: 0,
+  imageNaturalH: 0,
+  mode: 'pin',          // 'pin' | 'box'
+  annotations: [],       // [{id, type:'pin'|'box', x,y, x2,y2, note, regId}] x/y stored as % of image (0-100)
+  drawing: null          // in-progress box draw: {x, y}
+};
+
+function mkInit() {
+  // Reflect active project context; does not require a project to function.
+  var tag = document.getElementById('mk-project-tag');
+  var proj = AK.projects.find(function(p){ return p.id == AK.activeProject; });
+  if(proj) {
+    tag.textContent = proj.name;
+    tag.className = 'badge ok';
+  } else {
+    tag.textContent = 'no project — annotations won\'t link to registry';
+    tag.className = 'badge unchecked';
+  }
+  mkSetMode(MK.mode);
+}
+
+// ── Image loading: file picker, paste ──
+function mkFileSelected(e) {
+  var file = e.target.files && e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { mkLoadImage(ev.target.result); };
+  reader.readAsDataURL(file);
+}
+
+function mkPasteToggle() {
+  var zone = document.getElementById('mk-paste-zone');
+  var showing = zone.style.display !== 'none';
+  zone.style.display = showing ? 'none' : 'block';
+  if(!showing) {
+    var target = document.getElementById('mk-paste-target');
+    target.focus();
+    target.addEventListener('paste', mkPasteHandler);
+  }
+}
+
+function mkPasteHandler(e) {
+  var items = (e.clipboardData || window.clipboardData).items;
+  if(!items) return;
+  for(var i = 0; i < items.length; i++) {
+    if(items[i].type.indexOf('image') !== -1) {
+      var blob = items[i].getAsFile();
+      var reader = new FileReader();
+      reader.onload = function(ev) { mkLoadImage(ev.target.result); };
+      reader.readAsDataURL(blob);
+      e.preventDefault();
+      return;
+    }
+  }
+  toast('No image found in clipboard');
+}
+
+function mkLoadImage(dataUrl) {
+  var img = new Image();
+  img.onload = function() {
+    MK.imageDataUrl = dataUrl;
+    MK.imageNaturalW = img.naturalWidth;
+    MK.imageNaturalH = img.naturalHeight;
+    MK.annotations = [];
+    MK.drawing = null;
+    document.getElementById('mk-image').src = dataUrl;
+    document.getElementById('mk-empty-state').style.display = 'none';
+    document.getElementById('mk-workspace').style.display = 'block';
+    document.getElementById('mk-output-wrap').style.display = 'none';
+    mkRenderOverlay();
+    mkRenderAnnotationList();
+  };
+  img.onerror = function() { toast('Could not load that image'); };
+  img.src = dataUrl;
+}
+
+function mkNewImage() {
+  if(MK.annotations.length && !confirm('Discard current annotations and load a new screenshot?')) return;
+  document.getElementById('mk-workspace').style.display = 'none';
+  document.getElementById('mk-empty-state').style.display = 'block';
+  document.getElementById('mk-file-input').value = '';
+  MK.imageDataUrl = null;
+  MK.annotations = [];
+}
+
+// ── Mode toggle ──
+function mkSetMode(mode) {
+  MK.mode = mode;
+  document.getElementById('mk-mode-pin').classList.toggle('active', mode === 'pin');
+  document.getElementById('mk-mode-box').classList.toggle('active', mode === 'box');
+}
+
+// ── Touch/tap handling on the canvas ──
+// Reuses the event-handling pattern proven in the DevKit Inspector
+// (touches[0].clientX/Y over clientX/Y, preventDefault, single overlay
+// element). Unlike the Inspector, there's no live DOM element under the
+// tap to resolve — the hit target here is a pixel coordinate on the
+// screenshot image itself, converted to a percentage of image bounds so
+// annotations stay correctly placed if the image is later resized.
+(function mkWireCanvas() {
+  var wrap = document.getElementById('mk-canvas-wrap');
+  if(!wrap) return;
+  wrap.addEventListener('touchstart', mkPointerDown, { passive: false });
+  wrap.addEventListener('touchmove', mkPointerMove, { passive: false });
+  wrap.addEventListener('touchend', mkPointerUp, { passive: false });
+  wrap.addEventListener('mousedown', mkPointerDown);
+  wrap.addEventListener('mousemove', mkPointerMove);
+  wrap.addEventListener('mouseup', mkPointerUp);
+})();
+
+function mkEventPoint(e) {
+  var wrap = document.getElementById('mk-canvas-wrap');
+  var rect = wrap.getBoundingClientRect();
+  var cx, cy;
+  if(e.touches && e.touches[0]) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+  else if(e.changedTouches && e.changedTouches[0]) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
+  else { cx = e.clientX; cy = e.clientY; }
+  var xPct = ((cx - rect.left) / rect.width) * 100;
+  var yPct = ((cy - rect.top) / rect.height) * 100;
+  xPct = Math.max(0, Math.min(100, xPct));
+  yPct = Math.max(0, Math.min(100, yPct));
+  return { x: xPct, y: yPct };
+}
+
+function mkPointerDown(e) {
+  if(!MK.imageDataUrl) return;
+  e.preventDefault();
+  var p = mkEventPoint(e);
+  if(MK.mode === 'pin') {
+    mkAddAnnotation({ type: 'pin', x: p.x, y: p.y, note: '', regId: '' });
+  } else {
+    MK.drawing = { x: p.x, y: p.y, x2: p.x, y2: p.y };
+    mkRenderOverlay();
+  }
+}
+
+function mkPointerMove(e) {
+  if(!MK.drawing) return;
+  e.preventDefault();
+  var p = mkEventPoint(e);
+  MK.drawing.x2 = p.x;
+  MK.drawing.y2 = p.y;
+  mkRenderOverlay();
+}
+
+function mkPointerUp(e) {
+  if(!MK.drawing) return;
+  e.preventDefault();
+  var d = MK.drawing;
+  MK.drawing = null;
+  // Ignore near-zero-size boxes (likely an accidental tap, not a drag)
+  if(Math.abs(d.x2 - d.x) < 1.5 && Math.abs(d.y2 - d.y) < 1.5) { mkRenderOverlay(); return; }
+  mkAddAnnotation({
+    type: 'box',
+    x: Math.min(d.x, d.x2), y: Math.min(d.y, d.y2),
+    x2: Math.max(d.x, d.x2), y2: Math.max(d.y, d.y2),
+    note: '', regId: ''
+  });
+}
+
+function mkAddAnnotation(a) {
+  a.id = Date.now() + Math.random();
+  MK.annotations.push(a);
+  mkRenderOverlay();
+  mkRenderAnnotationList();
+}
+
+function mkUndo() {
+  MK.annotations.pop();
+  mkRenderOverlay();
+  mkRenderAnnotationList();
+}
+
+function mkClearAll() {
+  if(!MK.annotations.length) return;
+  if(!confirm('Clear all annotations on this screenshot?')) return;
+  MK.annotations = [];
+  mkRenderOverlay();
+  mkRenderAnnotationList();
+  document.getElementById('mk-output-wrap').style.display = 'none';
+}
+
+function mkDeleteAnnotation(id) {
+  MK.annotations = MK.annotations.filter(function(a){ return a.id !== id; });
+  mkRenderOverlay();
+  mkRenderAnnotationList();
+}
+
+// ── SVG overlay rendering ──
+function mkRenderOverlay() {
+  var svg = document.getElementById('mk-overlay-svg');
+  if(!svg) return;
+  var parts = [];
+  MK.annotations.forEach(function(a, i) {
+    var n = i + 1;
+    if(a.type === 'pin') {
+      parts.push(
+        '<circle class="mk-pin-dot" cx="' + a.x + '%" cy="' + a.y + '%" r="11"></circle>' +
+        '<text class="mk-pin-num" x="' + a.x + '%" y="' + a.y + '%" dy="0.35em">' + n + '</text>'
+      );
+    } else {
+      var w = a.x2 - a.x, h = a.y2 - a.y;
+      parts.push(
+        '<rect class="mk-box-rect" x="' + a.x + '%" y="' + a.y + '%" width="' + w + '%" height="' + h + '%"></rect>' +
+        '<text class="mk-box-num" x="' + a.x + '%" y="' + Math.max(0, a.y - 1) + '%">' + n + '</text>'
+      );
+    }
+  });
+  if(MK.drawing) {
+    var d = MK.drawing;
+    var w = Math.abs(d.x2 - d.x), h = Math.abs(d.y2 - d.y);
+    var x = Math.min(d.x, d.x2), y = Math.min(d.y, d.y2);
+    parts.push('<rect class="mk-box-rect drawing" x="' + x + '%" y="' + y + '%" width="' + w + '%" height="' + h + '%"></rect>');
+  }
+  svg.innerHTML = parts.join('');
+}
+
+// ── Annotation list (notes + registry link per item) ──
+function mkRenderAnnotationList() {
+  var wrap = document.getElementById('mk-annotation-list');
+  if(!wrap) return;
+  if(!MK.annotations.length) { wrap.innerHTML = ''; return; }
+
+  var regOptions = mkRegistryOptionsHtml();
+
+  wrap.innerHTML = MK.annotations.map(function(a, i) {
+    var n = i + 1;
+    return (
+      '<div class="mk-anno-item">' +
+        '<div class="mk-anno-top">' +
+          '<span class="mk-anno-num">' + n + '</span>' +
+          '<span class="mk-anno-type">' + (a.type === 'pin' ? '📍 Pin' : '▭ Box') + '</span>' +
+          '<button class="mk-anno-del" onclick="mkDeleteAnnotation(' + a.id + ')">✕</button>' +
+        '</div>' +
+        (regOptions !== null ?
+          '<select data-mk-id="' + a.id + '" onchange="mkSetAnnoReg(' + a.id + ', this.value)">' +
+            '<option value="">No registry link</option>' +
+            regOptions +
+          '</select>'
+          : '') +
+        '<textarea placeholder="What should change here?" oninput="mkSetAnnoNote(' + a.id + ', this.value)">' + _esc(a.note) + '</textarea>' +
+      '</div>'
+    );
+  }).join('');
+
+  // Restore each select's current value (kept out of the HTML string above
+  // to avoid escaping issues if a regId ever needs quoting)
+  MK.annotations.forEach(function(a) {
+    var sel = wrap.querySelector('select[data-mk-id="' + a.id + '"]');
+    if(sel) sel.value = a.regId || '';
+  });
+}
+
+function mkRegistryOptionsHtml() {
+  if(!AK.activeProject) return null;
+  var items = AK.registry.filter(function(r){ return r.projectId == AK.activeProject; });
+  if(!items.length) return null;
+  return items.map(function(r) {
+    return '<option value="' + r.id + '">' + _esc(r.name || r.elId) + (r.screen ? ' · ' + _esc(r.screen) : '') + '</option>';
+  }).join('');
+}
+
+function mkSetAnnoNote(id, val) {
+  var a = MK.annotations.find(function(x){ return x.id === id; });
+  if(a) a.note = val;
+}
+
+function mkSetAnnoReg(id, val) {
+  var a = MK.annotations.find(function(x){ return x.id === id; });
+  if(a) a.regId = val;
+}
+
+// ── Plain-English description generator ──
+function mkGenerateDescription() {
+  if(!MK.annotations.length) { toast('Add at least one annotation first'); return; }
+
+  var proj = AK.projects.find(function(p){ return p.id == AK.activeProject; });
+  var lines = [];
+  lines.push('Screenshot redesign notes' + (proj ? ' — ' + proj.name : '') + ':');
+  lines.push('');
+
+  MK.annotations.forEach(function(a, i) {
+    var n = i + 1;
+    var locDesc = a.type === 'pin'
+      ? 'at roughly ' + Math.round(a.x) + '%, ' + Math.round(a.y) + '% (x, y) on the screenshot'
+      : 'in the boxed region roughly ' + Math.round(a.x) + '–' + Math.round(a.x2) + '% horizontally, ' +
+        Math.round(a.y) + '–' + Math.round(a.y2) + '% vertically on the screenshot';
+
+    var regNote = '';
+    if(a.regId) {
+      var reg = AK.registry.find(function(r){ return r.id == a.regId; });
+      if(reg) regNote = ' This corresponds to the registered element ' + (reg.elId || reg.name) +
+        (reg.screen ? ' on the "' + reg.screen + '" screen' : '') + '.';
+    }
+
+    var note = (a.note || '').trim() || '(no description written for this one — add detail before sending)';
+
+    lines.push((n) + '. ' + note + ' — ' + locDesc + '.' + regNote);
+  });
+
+  lines.push('');
+  lines.push('Please apply the above changes to the relevant screen(s), preserving all other existing behavior.');
+
+  var text = lines.join('\n');
+  document.getElementById('mk-output-text').value = text;
+  document.getElementById('mk-output-wrap').style.display = 'block';
+  document.getElementById('mk-output-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function mkCopyOutput() {
+  var text = document.getElementById('mk-output-text').value;
+  if(!text) return;
+  copyOrShare(text, 'mockup-notes.txt');
 }
 
 // ════════════════════════════════════════════════════════════════
