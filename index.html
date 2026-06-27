@@ -762,10 +762,47 @@
   .mk-box-rect.drawing { stroke-dasharray: 4 3; }
   .mk-box-num  { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; fill: var(--teal); }
 
-  /* Mode buttons — active state */
-  #mk-mode-move.active { background: var(--bg3); border-color: var(--border2); color: var(--t1); }
-  #mk-mode-pin.active  { background: var(--teal-dim); border-color: var(--teal-border); color: var(--teal); }
-  #mk-mode-box.active  { background: var(--teal-dim); border-color: var(--teal-border); color: var(--teal); }
+  /* Toolbar */
+  .mk-toolbar {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--bg2); border: 1px solid var(--border1);
+    border-radius: var(--radius); padding: 4px 6px;
+    margin-bottom: 6px; overflow-x: auto;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .mk-toolbar::-webkit-scrollbar { display: none; }
+  .mk-toolbar-sep { width: 1px; height: 20px; background: var(--border1); margin: 0 4px; flex-shrink: 0; }
+
+  .mk-tool-btn {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; background: none; border: none;
+    border-radius: 6px; color: var(--t2); cursor: pointer;
+    transition: background 0.15s, color 0.15s; position: relative;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+  }
+  .mk-tool-btn.sm { width: 30px; height: 30px; font-size: 14px; }
+  .mk-tool-btn:active { background: var(--bg3); }
+  .mk-tool-btn.active { background: var(--teal-dim); color: var(--teal); }
+  #mk-mode-move.active { background: var(--bg3); color: var(--t1); }
+  #mk-mode-cut.active  { background: rgba(255,215,0,0.12); color: var(--gold); }
+  #mk-mode-shape.active { background: rgba(157,78,221,0.15); color: var(--purple); }
+
+  /* Tooltip (shown on long-press) */
+  #mk-tool-tip {
+    position: fixed; z-index: 3000;
+    background: var(--bg0); color: var(--t1);
+    border: 1px solid var(--border2);
+    border-radius: 6px; padding: 6px 10px;
+    font-size: 12px; font-weight: 500;
+    pointer-events: none; white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+
+  /* Zoom bar */
+  #mk-zoom-bar { transition: opacity 0.3s; }
 
   /* Annotation list */
   #mk-annotation-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
@@ -811,6 +848,17 @@
   .mk-cat-feature  { border-left: 3px solid var(--gold); }
   .mk-cat-feature .mk-anno-type-badge { background: rgba(255,215,0,0.12); color: var(--gold); }
   .mk-cat-none     { border-left: 3px solid var(--border2); }
+
+  /* Copy annotation item (renamed from cut) */
+  .mk-anno-cut { border-left: 3px solid var(--gold); }
+  .mk-anno-cut .mk-anno-type-badge { background: rgba(255,215,0,0.12); color: var(--gold); }
+
+  /* Copy-preview canvas — sized to match rendered image, updated during drag */
+  #mk-copy-preview { width: 100%; opacity: 0.92; }
+
+  /* Shape annotation item */
+  .mk-anno-shape { border-left: 3px solid var(--purple); }
+  .mk-anno-shape .mk-anno-type-badge { background: rgba(157,78,221,0.15); color: var(--purple); }
 
   /* Position destination marker — gold diamond outline */
   .mk-dest-diamond { fill: none; stroke: var(--gold); stroke-width: 2.5; }
@@ -2226,22 +2274,40 @@
               <input type="text" id="mk-session-name" style="height:32px;font-size:12px;" placeholder="e.g. Home screen layout — June 21" oninput="mkDebounceSave()">
             </div>
 
-            <!-- MODE TOOLBAR -->
-            <div class="row" style="gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-              <button class="btn sm" id="mk-mode-move" onclick="mkSetMode('move')" title="Scroll freely">↕ Move</button>
-              <button class="btn sm" id="mk-mode-pin"  onclick="mkSetMode('pin')"  title="Long-press to drop a pin">📍 Pin</button>
-              <button class="btn sm" id="mk-mode-box"  onclick="mkSetMode('box')"  title="Drag to draw a box">▭ Box</button>
-              <span class="spacer"></span>
-              <button class="btn sm" onclick="mkUndo()">↶ Undo</button>
-              <button class="btn sm red" onclick="mkClearAll()">✕ Clear</button>
-              <button class="btn sm" onclick="mkNewImage()">⟳ New</button>
+            <!-- MODE TOOLBAR — icon-only, long-press shows tooltip -->
+            <div id="mk-toolbar-main" class="mk-toolbar">
+              <button class="mk-tool-btn" id="mk-mode-move" data-tip="Move — scroll freely"      onclick="mkSetMode('move')" oncontextmenu="return false">↕</button>
+              <button class="mk-tool-btn" id="mk-mode-pin"  data-tip="Pin — tap to drop a pin"   onclick="mkSetMode('pin')"  oncontextmenu="return false">📍</button>
+              <button class="mk-tool-btn" id="mk-mode-box"  data-tip="Box — drag to annotate"    onclick="mkSetMode('box')"  oncontextmenu="return false">▭</button>
+              <button class="mk-tool-btn" id="mk-mode-cut"  data-tip="Copy &amp; Place — drag to copy a region, drag to place it" onclick="mkSetMode('cut')" oncontextmenu="return false">⧉</button>
+              <button class="mk-tool-btn" id="mk-mode-shape" data-tip="Shapes — arrows, lines, freehand" onclick="mkSetMode('shape')" oncontextmenu="return false">✏</button>
+              <span class="mk-toolbar-sep"></span>
+              <button class="mk-tool-btn" data-tip="Undo last annotation" onclick="mkUndo()"     oncontextmenu="return false">↶</button>
+              <button class="mk-tool-btn" data-tip="Clear all annotations" onclick="mkClearAll()" oncontextmenu="return false" style="color:var(--red)">✕</button>
+              <button class="mk-tool-btn" data-tip="Load new screenshot"  onclick="mkNewImage()"  oncontextmenu="return false">⟳</button>
             </div>
-            <div id="mk-mode-hint" style="font-size:11px;color:var(--t3);margin-bottom:8px;min-height:14px;"></div>
+
+            <!-- SHAPE SUB-TOOLS (visible only in shape mode) -->
+            <div id="mk-shape-subtool" class="mk-toolbar" style="display:none;">
+              <button class="mk-tool-btn sm" id="mk-shape-arrow"   data-tip="Arrow — drag from tail to head"  onclick="mkSetShape('arrow')"   oncontextmenu="return false">↗</button>
+              <button class="mk-tool-btn sm" id="mk-shape-line"    data-tip="Line — drag to draw"             onclick="mkSetShape('line')"    oncontextmenu="return false">╱</button>
+              <button class="mk-tool-btn sm" id="mk-shape-circle"  data-tip="Circle — drag to size"           onclick="mkSetShape('circle')"  oncontextmenu="return false">○</button>
+              <button class="mk-tool-btn sm" id="mk-shape-rect"    data-tip="Rectangle highlight — drag"      onclick="mkSetShape('rect')"    oncontextmenu="return false">□</button>
+              <button class="mk-tool-btn sm" id="mk-shape-free"    data-tip="Freehand — draw freely"          onclick="mkSetShape('free')"    oncontextmenu="return false">〜</button>
+            </div>
+
+            <!-- TOOLTIP (shown on long-press of any tool btn) -->
+            <div id="mk-tool-tip" style="display:none;"></div>
+
+            <!-- ZOOM INDICATOR -->
+            <div id="mk-zoom-bar" style="display:none;font-size:10px;color:var(--t3);text-align:right;margin-bottom:4px;"></div>
 
             <!-- CANVAS WINDOW — 55vh fixed, scrolls internally -->
             <div id="mk-canvas-wrap">
               <img id="mk-image" alt="Screenshot">
               <svg id="mk-overlay-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+              <!-- live pixel copy preview — shown during copy-drag phase 2 -->
+              <canvas id="mk-copy-preview" style="position:absolute;top:0;left:0;pointer-events:none;display:none;"></canvas>
               <div id="mk-press-ring"></div>
             </div>
             <canvas id="mk-export-canvas" style="display:none;"></canvas>
@@ -2250,6 +2316,14 @@
             <div id="mk-dest-banner" style="display:none;background:var(--gold);color:#1a1a1a;font-size:12px;font-weight:700;text-align:center;padding:8px 12px;border-radius:var(--radius);margin-top:6px;">
               📍 Long-press on the screenshot to mark WHERE it should move to
               <button onclick="mkCancelDestPick()" style="margin-left:10px;background:rgba(0,0,0,0.15);border:none;border-radius:4px;color:#1a1a1a;padding:2px 8px;font-size:11px;font-weight:700;">Cancel</button>
+            </div>
+
+            <!-- CUT CONFIRM BANNER -->
+            <div id="mk-cut-confirm" style="display:none;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--radius);padding:8px 12px;margin-top:6px;display:none;">
+              <div class="row" style="gap:8px;">
+                <button class="btn teal" style="flex:1;" onclick="mkConfirmCut()">✓ Confirm placement</button>
+                <button class="btn"      style="flex:1;" onclick="mkCancelCut()">✕ Cancel cut</button>
+              </div>
             </div>
 
             <!-- ANNOTATION LIST -->
@@ -5319,16 +5393,29 @@ function mkInit() {
 function mkSetMode(mode) {
   MK.mode = mode;
   if(mode !== 'dest') { MK.drawing = null; mkCancelPress(); }
+  if(mode !== 'cut')  { if(typeof mkCancelCut !== 'undefined') { mkCancelCut(); } mkHideCopyPreview && mkHideCopyPreview(); }
+
   var wrap = document.getElementById('mk-canvas-wrap');
+  // Move = native scroll; all others = JS controls touch
   if(wrap) wrap.style.touchAction = (mode === 'move') ? 'pan-y' : 'none';
-  ['move','pin','box'].forEach(function(m) {
+
+  // Active states
+  ['move','pin','box','cut','shape'].forEach(function(m) {
     var btn = document.getElementById('mk-mode-' + m);
     if(btn) btn.classList.toggle('active', m === mode);
   });
+
+  // Shape sub-toolbar
+  var subTool = document.getElementById('mk-shape-subtool');
+  if(subTool) subTool.style.display = (mode === 'shape') ? 'flex' : 'none';
+  if(mode === 'shape') mkSetShape(MK_SHAPE); // restore active sub-btn
+
   var hints = {
-    move: '\u2195  Scroll the screenshot freely \u2014 no annotations will be placed.',
-    pin:  '\ud83d\udccd Long-press and hold to drop a pin. Release early to cancel.',
-    box:  '\u25ad  Press and drag to draw a box around an area.'
+    move:  '\u2195  Scroll the screenshot freely \u2014 no annotations will be placed.',
+    pin:   '\ud83d\udccd Tap anywhere on the screenshot to drop a pin.',
+    box:   '\u25ad  Press and drag to draw a box around an area.',
+    cut:   '\u29c9  Drag to select a region to copy, then drag the copy to its destination.',
+    shape: 'Draw a shape \u2014 select arrow, line, circle, rectangle, or freehand above.'
   };
   var hint = document.getElementById('mk-mode-hint');
   if(hint) hint.textContent = hints[mode] || '';
@@ -5395,6 +5482,7 @@ function mkNewImage() {
   document.getElementById('mk-file-input').value = '';
   MK.imageDataUrl = null; MK.imageW = 0; MK.imageH = 0;
   MK.annotations = []; MK.drawing = null; MK.sessionId = null;
+  mkResetZoom();
 }
 
 // ── Touch/pointer wiring ──
@@ -5433,8 +5521,448 @@ function mkMouseDown(e) { if(MK.mode === 'move') return; _mkMD = true;  mkPointe
 function mkMouseMove(e) { if(!_mkMD || MK.mode === 'move') return;       mkPointerMove(e.clientX, e.clientY); }
 function mkMouseUp(e)   { if(!_mkMD) return; _mkMD = false;              mkPointerUp(e.clientX, e.clientY); }
 
+// ── Tool-button tooltip (long-press reveals label) ──
+(function mkWireTooltips() {
+  var TIP_DELAY = 500;
+  var tipTimer = null;
+  var tipEl = null;
+
+  function showTip(btn) {
+    tipEl = document.getElementById('mk-tool-tip');
+    if(!tipEl) return;
+    var label = btn.getAttribute('data-tip');
+    if(!label) return;
+    tipEl.textContent = label;
+    tipEl.style.display = 'block';
+    // Position above the button
+    var r = btn.getBoundingClientRect();
+    var tw = tipEl.offsetWidth;
+    var left = Math.max(8, r.left + r.width/2 - tw/2);
+    tipEl.style.left = left + 'px';
+    tipEl.style.top  = (r.top - 44 + window.scrollY) + 'px';
+  }
+  function hideTip() {
+    var el = document.getElementById('mk-tool-tip');
+    if(el) el.style.display = 'none';
+  }
+
+  document.addEventListener('touchstart', function(e) {
+    var btn = e.target.closest('.mk-tool-btn');
+    if(!btn) return;
+    tipTimer = setTimeout(function(){ showTip(btn); }, TIP_DELAY);
+  }, { passive: true });
+
+  document.addEventListener('touchend',    function(){ clearTimeout(tipTimer); hideTip(); }, { passive: true });
+  document.addEventListener('touchcancel', function(){ clearTimeout(tipTimer); hideTip(); }, { passive: true });
+})();
+
+// ── Shape sub-mode ──
+var MK_SHAPE = 'arrow'; // current shape sub-tool
+
+function mkSetShape(shape) {
+  MK_SHAPE = shape;
+  ['arrow','line','circle','rect','free'].forEach(function(s) {
+    var btn = document.getElementById('mk-shape-' + s);
+    if(btn) btn.classList.toggle('active', s === shape);
+  });
+}
+
+// ── Pinch-to-zoom ──
+var MK_ZOOM = {
+  scale: 1,
+  originX: 0, // transform origin % of image width
+  originY: 0,
+  lastDist: null
+};
+
+function mkPinchStart(e) {
+  if(e.touches.length !== 2) return;
+  MK_ZOOM.lastDist = mkPinchDist(e.touches);
+}
+
+function mkPinchMove(e) {
+  if(e.touches.length !== 2 || MK_ZOOM.lastDist === null) return;
+  e.preventDefault();
+  var newDist = mkPinchDist(e.touches);
+  var ratio = newDist / MK_ZOOM.lastDist;
+  MK_ZOOM.lastDist = newDist;
+  // Midpoint of the two fingers as origin
+  var wrap = document.getElementById('mk-canvas-wrap');
+  var img  = document.getElementById('mk-image');
+  if(!wrap || !img) return;
+  var r = wrap.getBoundingClientRect();
+  var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+  var my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  MK_ZOOM.originX = ((mx - r.left) / img.offsetWidth)  * 100;
+  MK_ZOOM.originY = ((my - r.top + wrap.scrollTop) / img.offsetHeight) * 100;
+  MK_ZOOM.scale = Math.max(1, Math.min(6, MK_ZOOM.scale * ratio));
+  mkApplyZoom();
+}
+
+function mkPinchEnd(e) {
+  MK_ZOOM.lastDist = null;
+  // If scale has returned to ~1, reset cleanly
+  if(MK_ZOOM.scale <= 1.05) { MK_ZOOM.scale = 1; mkApplyZoom(); }
+}
+
+function mkPinchDist(touches) {
+  var dx = touches[0].clientX - touches[1].clientX;
+  var dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+function mkApplyZoom() {
+  var img = document.getElementById('mk-image');
+  var svg = document.getElementById('mk-overlay-svg');
+  var ring = document.getElementById('mk-press-ring');
+  var s = MK_ZOOM.scale;
+  var ox = MK_ZOOM.originX + '%';
+  var oy = MK_ZOOM.originY + '%';
+  var t = s === 1 ? '' : 'scale(' + s + ')';
+  var origin = ox + ' ' + oy;
+  [img, svg, ring].forEach(function(el) {
+    if(!el) return;
+    el.style.transformOrigin = origin;
+    el.style.transform = t;
+  });
+  var bar = document.getElementById('mk-zoom-bar');
+  if(bar) {
+    bar.style.display = s > 1.05 ? 'block' : 'none';
+    bar.textContent = Math.round(s * 100) + '%';
+  }
+}
+
+function mkResetZoom() {
+  MK_ZOOM.scale = 1; MK_ZOOM.lastDist = null;
+  mkApplyZoom();
+}
+
+// Wire pinch listeners onto canvas wrap (in addition to existing touch listeners)
+(function mkWirePinch() {
+  var wrap = document.getElementById('mk-canvas-wrap');
+  if(!wrap) return;
+  wrap.addEventListener('touchstart', function(e) {
+    if(e.touches.length === 2) mkPinchStart(e);
+  }, { passive: true });
+  wrap.addEventListener('touchmove', function(e) {
+    if(e.touches.length === 2) mkPinchMove(e);
+  }, { passive: false });
+  wrap.addEventListener('touchend',    mkPinchEnd, { passive: true });
+  wrap.addEventListener('touchcancel', mkPinchEnd, { passive: true });
+})();
+
+// ── Cut-and-move state ──
+// Phase 1: user drags to define source rect (same gesture as Box)
+// Phase 2: user drags the floating piece to its destination
+// The "cut" piece is rendered as a semi-transparent rect copy in the SVG
+// overlay (source stays visible with a dashed border + tint).
+// On long-press in phase 2, destination is confirmed.
+var MK_CUT = {
+  phase: 0,       // 0=idle, 1=drawing source, 2=dragging copy
+  src: null,      // {x,y,x2,y2} in % — the selected source region
+  dest: null,     // {x,y} top-left of placed copy in %
+  dragStart: null // {px,py,destX,destY} — finger position + dest position at start of drag
+};
+
+function mkCutPointerDown(cx, cy) {
+  var p = mkClientToPercent(cx, cy);
+  if(MK_CUT.phase === 0) {
+    // Phase 1: start drawing source rect
+    MK_CUT.src = { x: p.x, y: p.y, x2: p.x, y2: p.y };
+    MK_CUT.phase = 1;
+  } else if(MK_CUT.phase === 2) {
+    // Phase 2: begin dragging the copy — record offset from dest top-left
+    // dragOffset persists until confirm/cancel; only recalculate on new touch-down
+    MK_CUT.dragStart = { px: p.x, py: p.y, destX: MK_CUT.dest.x, destY: MK_CUT.dest.y };
+  }
+}
+
+function mkCutPointerMove(cx, cy) {
+  var p = mkClientToPercent(cx, cy);
+  if(MK_CUT.phase === 1 && MK_CUT.src) {
+    MK_CUT.src.x2 = p.x; MK_CUT.src.y2 = p.y;
+    mkRenderCutOverlay();
+  } else if(MK_CUT.phase === 2 && MK_CUT.dragStart) {
+    // Smooth drag: dest moves by the same delta as the finger
+    var ddx = p.x - MK_CUT.dragStart.px;
+    var ddy = p.y - MK_CUT.dragStart.py;
+    MK_CUT.dest = {
+      x: MK_CUT.dragStart.destX + ddx,
+      y: MK_CUT.dragStart.destY + ddy
+    };
+    mkRenderCutOverlay();
+    mkUpdateCopyPreview();
+  }
+}
+
+function mkCutPointerUp(cx, cy) {
+  if(MK_CUT.phase === 1) {
+    var s = MK_CUT.src; if(!s) return;
+    var driftX = Math.abs(s.x2 - s.x), driftY = Math.abs(s.y2 - s.y);
+    if(driftX < 2 && driftY < 2) {
+      MK_CUT.phase = 0; MK_CUT.src = null; mkRenderCutOverlay(); return;
+    }
+    MK_CUT.src = { x: Math.min(s.x,s.x2), y: Math.min(s.y,s.y2), x2: Math.max(s.x,s.x2), y2: Math.max(s.y,s.y2) };
+    MK_CUT.dest = { x: MK_CUT.src.x + 4, y: MK_CUT.src.y + 4 }; // slight offset so copy is visibly separate
+    MK_CUT.dragStart = null;
+    MK_CUT.phase = 2;
+    mkRenderCutOverlay();
+    mkUpdateCopyPreview();
+    var hint = document.getElementById('mk-mode-hint');
+    if(hint) hint.textContent = 'Drag the copy to its new position, then tap \u2713 Confirm';
+    mkShowCutConfirm(true);
+  } else if(MK_CUT.phase === 2) {
+    // Finger lifted — keep dest where it is, clear drag start so next touch-down recalculates
+    MK_CUT.dragStart = null;
+  }
+}
+
+function mkShowCutConfirm(show) {
+  var el = document.getElementById('mk-cut-confirm');
+  if(!el) return;
+  el.style.display = show ? 'block' : 'none';
+}
+
+function mkConfirmCut() {
+  if(!MK_CUT.src || !MK_CUT.dest) return;
+  var a = {
+    id: Date.now() + Math.random(),
+    type: 'cut', cat: 'cut',
+    src:  { x: MK_CUT.src.x,  y: MK_CUT.src.y,  x2: MK_CUT.src.x2, y2: MK_CUT.src.y2 },
+    dest: { x: MK_CUT.dest.x, y: MK_CUT.dest.y },
+    fields: { note: '' }, regId: ''
+  };
+  MK.annotations.push(a);
+  MK_CUT.phase = 0; MK_CUT.src = null; MK_CUT.dest = null;
+  MK_CUT.dragStart = null;
+  mkShowCutConfirm(false);
+  mkHideCopyPreview();
+  mkRenderCutOverlay();
+  mkRenderOverlay();
+  mkRenderAnnotationList();
+  var hint = document.getElementById('mk-mode-hint');
+  if(hint) hint.textContent = '\u29c9  Drag to select a region to copy, then drag the copy to its destination.';
+  mkDebounceSave();
+}
+
+function mkCancelCut() {
+  MK_CUT.phase = 0; MK_CUT.src = null; MK_CUT.dest = null; MK_CUT.dragStart = null;
+  mkShowCutConfirm(false);
+  mkHideCopyPreview();
+  mkRenderCutOverlay();
+}
+
+// ── Copy-preview canvas (real screenshot pixels at destination) ──
+// Renders the source region pixels onto a transparent canvas positioned
+// at the destination, giving a live pixel-accurate preview while dragging.
+function mkUpdateCopyPreview() {
+  if(!MK.imageDataUrl || !MK_CUT.src || !MK_CUT.dest) return;
+  var imgEl  = document.getElementById('mk-image');
+  var prev   = document.getElementById('mk-copy-preview');
+  if(!imgEl || !prev) return;
+
+  var rendW  = imgEl.offsetWidth;
+  var rendH  = imgEl.offsetHeight;
+  var s = MK_CUT.src;
+
+  // Source pixel coords in the rendered image space
+  var srcX   = s.x  / 100 * rendW;
+  var srcY   = s.y  / 100 * rendH;
+  var srcW   = (s.x2 - s.x) / 100 * rendW;
+  var srcH   = (s.y2 - s.y) / 100 * rendH;
+
+  // Destination pixel coords
+  var dstX   = MK_CUT.dest.x / 100 * rendW;
+  var dstY   = MK_CUT.dest.y / 100 * rendH;
+
+  if(srcW < 1 || srcH < 1) return;
+
+  // Size preview canvas to rendered image dimensions
+  if(prev.width !== rendW || prev.height !== rendH) {
+    prev.width  = rendW;
+    prev.height = rendH;
+    prev.style.width  = rendW + 'px';
+    prev.style.height = rendH + 'px';
+  }
+
+  var ctx = prev.getContext('2d');
+  ctx.clearRect(0, 0, rendW, rendH);
+
+  // Draw the source pixels at the destination position
+  ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, dstX, dstY, srcW, srcH);
+
+  // Gold border around the placed copy
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth   = 2.5;
+  ctx.strokeRect(dstX, dstY, srcW, srcH);
+
+  prev.style.display = 'block';
+}
+
+function mkHideCopyPreview() {
+  var prev = document.getElementById('mk-copy-preview');
+  if(prev) { prev.style.display = 'none'; var ctx = prev.getContext('2d'); if(ctx) ctx.clearRect(0,0,prev.width,prev.height); }
+}
+
+// Renders the in-progress copy state into the SVG overlay
+function mkRenderCutOverlay() {
+  var svg = document.getElementById('mk-overlay-svg'); if(!svg) return;
+  var existing = document.getElementById('mk-cut-inprog');
+  if(existing) existing.remove();
+  if(MK_CUT.phase === 0) return;
+
+  var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('id','mk-cut-inprog');
+
+  var s = MK_CUT.src;
+  if(s) {
+    var sw = Math.abs(s.x2-s.x), sh = Math.abs(s.y2-s.y);
+    var sx = Math.min(s.x,s.x2), sy = Math.min(s.y,s.y2);
+
+    // Source region — dashed outline only, no fill (copy semantics: source stays intact)
+    var srcRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    srcRect.setAttribute('x', sx+'%'); srcRect.setAttribute('y', sy+'%');
+    srcRect.setAttribute('width', sw+'%'); srcRect.setAttribute('height', sh+'%');
+    srcRect.setAttribute('fill','none');
+    srcRect.setAttribute('stroke','#ffd700'); srcRect.setAttribute('stroke-width','2');
+    srcRect.setAttribute('stroke-dasharray','6 3');
+    g.appendChild(srcRect);
+
+    // Phase 2: arrow from source centroid to dest (pixel preview handles the copy image)
+    if(MK_CUT.phase === 2 && MK_CUT.dest) {
+      var scx = sx + sw/2, scy = sy + sh/2;
+      var dx = MK_CUT.dest.x + sw/2, dy = MK_CUT.dest.y + sh/2; // arrow to dest centroid
+
+      var defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+      var marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+      marker.setAttribute('id','mkarrowcopy'); marker.setAttribute('markerWidth','8');
+      marker.setAttribute('markerHeight','8'); marker.setAttribute('refX','6');
+      marker.setAttribute('refY','3'); marker.setAttribute('orient','auto');
+      var path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d','M0,0 L0,6 L8,3 z'); path.setAttribute('fill','#ffd700');
+      marker.appendChild(path); defs.appendChild(marker); g.appendChild(defs);
+
+      var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',scx+'%'); line.setAttribute('y1',scy+'%');
+      line.setAttribute('x2',dx+'%');  line.setAttribute('y2',dy+'%');
+      line.setAttribute('stroke','#ffd700'); line.setAttribute('stroke-width','1.5');
+      line.setAttribute('stroke-dasharray','4 3');
+      line.setAttribute('marker-end','url(#mkarrowcopy)');
+      g.appendChild(line);
+    }
+  }
+  svg.appendChild(g);
+}
+
+// ── Shape drawing state ──
+var MK_SHAPE_DRAW = {
+  active: false,
+  startX: 0, startY: 0,
+  path: []    // for freehand
+};
+
+function mkShapePointerDown(cx, cy) {
+  var p = mkClientToPercent(cx, cy);
+  MK_SHAPE_DRAW.active = true;
+  MK_SHAPE_DRAW.startX = p.x; MK_SHAPE_DRAW.startY = p.y;
+  MK_SHAPE_DRAW.path = [{ x: p.x, y: p.y }];
+  mkRenderShapePreview(p.x, p.y);
+}
+
+function mkShapePointerMove(cx, cy) {
+  if(!MK_SHAPE_DRAW.active) return;
+  var p = mkClientToPercent(cx, cy);
+  if(MK_SHAPE === 'free') { MK_SHAPE_DRAW.path.push({ x: p.x, y: p.y }); }
+  mkRenderShapePreview(p.x, p.y);
+}
+
+function mkShapePointerUp(cx, cy) {
+  if(!MK_SHAPE_DRAW.active) return;
+  MK_SHAPE_DRAW.active = false;
+  var p = cx !== null ? mkClientToPercent(cx, cy) : { x: MK_SHAPE_DRAW.startX, y: MK_SHAPE_DRAW.startY };
+  // Remove preview
+  var prev = document.getElementById('mk-shape-preview');
+  if(prev) prev.remove();
+  // Minimum size check (ignore accidental taps except freehand)
+  var dx = Math.abs(p.x - MK_SHAPE_DRAW.startX), dy = Math.abs(p.y - MK_SHAPE_DRAW.startY);
+  if(MK_SHAPE !== 'free' && dx < 1 && dy < 1) return;
+  if(MK_SHAPE === 'free' && MK_SHAPE_DRAW.path.length < 3) return;
+  // Build annotation
+  var a = {
+    id: Date.now() + Math.random(),
+    type: 'shape',
+    cat: 'shape',
+    shape: MK_SHAPE,
+    x1: MK_SHAPE_DRAW.startX, y1: MK_SHAPE_DRAW.startY,
+    x2: p.x, y2: p.y,
+    path: MK_SHAPE === 'free' ? MK_SHAPE_DRAW.path.slice() : null,
+    fields: { note: '' },
+    regId: ''
+  };
+  MK.annotations.push(a);
+  mkRenderOverlay(); mkRenderAnnotationList(); mkDebounceSave();
+}
+
+// Live preview of shape being drawn
+function mkRenderShapePreview(cx, cy) {
+  var svg = document.getElementById('mk-overlay-svg'); if(!svg) return;
+  var prev = document.getElementById('mk-shape-preview');
+  if(prev) prev.remove();
+  var col = '#9d4edd'; // purple for shapes
+  var el;
+  var sx = MK_SHAPE_DRAW.startX, sy = MK_SHAPE_DRAW.startY;
+
+  if(MK_SHAPE === 'line') {
+    el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1',sx+'%'); el.setAttribute('y1',sy+'%');
+    el.setAttribute('x2',cx+'%'); el.setAttribute('y2',cy+'%');
+    el.setAttribute('stroke',col); el.setAttribute('stroke-width','2.5');
+  } else if(MK_SHAPE === 'arrow') {
+    var g2 = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g2.setAttribute('id','mk-shape-preview');
+    var arLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    arLine.setAttribute('x1',sx+'%'); arLine.setAttribute('y1',sy+'%');
+    arLine.setAttribute('x2',cx+'%'); arLine.setAttribute('y2',cy+'%');
+    arLine.setAttribute('stroke',col); arLine.setAttribute('stroke-width','2.5');
+    arLine.setAttribute('marker-end','url(#mkarshape)');
+    var defsEl = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    var mkEl = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    mkEl.setAttribute('id','mkarshape'); mkEl.setAttribute('markerWidth','8');
+    mkEl.setAttribute('markerHeight','8'); mkEl.setAttribute('refX','6');
+    mkEl.setAttribute('refY','3'); mkEl.setAttribute('orient','auto');
+    var pEl = document.createElementNS('http://www.w3.org/2000/svg','path');
+    pEl.setAttribute('d','M0,0 L0,6 L8,3 z'); pEl.setAttribute('fill',col);
+    mkEl.appendChild(pEl); defsEl.appendChild(mkEl); g2.appendChild(defsEl); g2.appendChild(arLine);
+    svg.appendChild(g2); return;
+  } else if(MK_SHAPE === 'circle') {
+    var rx2 = Math.abs(cx - sx)/2, ry2 = Math.abs(cy - sy)/2;
+    var ecx = (sx + cx)/2, ecy = (sy + cy)/2;
+    el = document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+    el.setAttribute('cx',ecx+'%'); el.setAttribute('cy',ecy+'%');
+    el.setAttribute('rx',rx2+'%'); el.setAttribute('ry',ry2+'%');
+    el.setAttribute('fill',col+'22'); el.setAttribute('stroke',col); el.setAttribute('stroke-width','2.5');
+  } else if(MK_SHAPE === 'rect') {
+    var rw = Math.abs(cx-sx), rh = Math.abs(cy-sy);
+    el = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    el.setAttribute('x',Math.min(sx,cx)+'%'); el.setAttribute('y',Math.min(sy,cy)+'%');
+    el.setAttribute('width',rw+'%'); el.setAttribute('height',rh+'%');
+    el.setAttribute('fill',col+'22'); el.setAttribute('stroke',col); el.setAttribute('stroke-width','2.5');
+  } else if(MK_SHAPE === 'free') {
+    var pts = MK_SHAPE_DRAW.path.map(function(p2){ return p2.x+'% '+p2.y+'%'; }).join(', ');
+    el = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    el.setAttribute('points',pts);
+    el.setAttribute('fill','none'); el.setAttribute('stroke',col); el.setAttribute('stroke-width','2.5');
+    el.setAttribute('stroke-linecap','round'); el.setAttribute('stroke-linejoin','round');
+  }
+  if(el) { el.setAttribute('id','mk-shape-preview'); svg.appendChild(el); }
+}
+
 function mkPointerDown(cx, cy) {
-  if(MK.mode === 'pin' || MK.mode === 'dest') {
+  if(MK.mode === 'pin') {
+    // TAP — place pin immediately on pointer-down (no long-press)
+    var p = mkClientToPercent(cx, cy);
+    mkAddAnnotation({ type: 'pin', x: p.x, y: p.y });
+  } else if(MK.mode === 'dest') {
     MK.pressOrigin = { x: cx, y: cy };
     mkShowPressRing(cx, cy);
     var capturedMode = MK.mode;
@@ -5442,29 +5970,33 @@ function mkPointerDown(cx, cy) {
       MK.pressTimer = null;
       var p = mkClientToPercent(MK.pressOrigin.x, MK.pressOrigin.y);
       mkHidePressRing(true);
-      if(capturedMode === 'dest') {
-        mkPlaceDestination(p.x, p.y);
-      } else {
-        mkAddAnnotation({ type: 'pin', x: p.x, y: p.y });
-      }
+      mkPlaceDestination(p.x, p.y);
     }, 500);
   } else if(MK.mode === 'box') {
     var p = mkClientToPercent(cx, cy);
     MK.drawing = { x: p.x, y: p.y, x2: p.x, y2: p.y, startCX: cx, startCY: cy };
+  } else if(MK.mode === 'cut') {
+    mkCutPointerDown(cx, cy);
+  } else if(MK.mode === 'shape') {
+    mkShapePointerDown(cx, cy);
   }
 }
 function mkPointerMove(cx, cy) {
-  if((MK.mode === 'pin' || MK.mode === 'dest') && MK.pressTimer && MK.pressOrigin) {
+  if(MK.mode === 'dest' && MK.pressTimer && MK.pressOrigin) {
     var dx = cx - MK.pressOrigin.x, dy = cy - MK.pressOrigin.y;
     if(Math.sqrt(dx*dx + dy*dy) > 8) mkCancelPress();
   } else if(MK.mode === 'box' && MK.drawing) {
     var p = mkClientToPercent(cx, cy);
     MK.drawing.x2 = p.x; MK.drawing.y2 = p.y;
     mkRenderOverlay();
+  } else if(MK.mode === 'cut') {
+    mkCutPointerMove(cx, cy);
+  } else if(MK.mode === 'shape') {
+    mkShapePointerMove(cx, cy);
   }
 }
 function mkPointerUp(cx, cy) {
-  if(MK.mode === 'pin' || MK.mode === 'dest') {
+  if(MK.mode === 'dest') {
     mkCancelPress();
   } else if(MK.mode === 'box' && MK.drawing) {
     var d = MK.drawing; MK.drawing = null;
@@ -5474,6 +6006,10 @@ function mkPointerUp(cx, cy) {
     mkAddAnnotation({ type: 'box',
       x: Math.min(d.x, d.x2), y: Math.min(d.y, d.y2),
       x2: Math.max(d.x, d.x2), y2: Math.max(d.y, d.y2) });
+  } else if(MK.mode === 'cut') {
+    mkCutPointerUp(cx, cy);
+  } else if(MK.mode === 'shape') {
+    mkShapePointerUp(cx, cy);
   }
 }
 function mkCancelPress() {
@@ -5582,12 +6118,53 @@ function mkRenderOverlay() {
         '<circle cx="' + a.x + '%" cy="' + a.y + '%" r="12" fill="' + col + '" stroke="var(--bg0)" stroke-width="2"></circle>' +
         '<text x="' + a.x + '%" y="' + a.y + '%" dy="0.35em" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="var(--bg0)" pointer-events="none">' + n + '</text>'
       );
-    } else {
+    } else if(a.type === 'box') {
       var w = a.x2 - a.x, h = a.y2 - a.y;
       parts.push(
         '<rect x="' + a.x + '%" y="' + a.y + '%" width="' + w + '%" height="' + h + '%" fill="' + col + '" fill-opacity="0.12" stroke="' + col + '" stroke-width="2"></rect>' +
         '<text x="' + (a.x + 0.5) + '%" y="' + a.y + '%" dy="-3" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="' + col + '" pointer-events="none">' + n + '</text>'
       );
+    } else if(a.type === 'cut') {
+      // Source rect — dashed gold border
+      var sw = a.src.x2 - a.src.x, sh = a.src.y2 - a.src.y;
+      parts.push(
+        '<rect x="' + a.src.x + '%" y="' + a.src.y + '%" width="' + sw + '%" height="' + sh + '%" fill="rgba(255,215,0,0.12)" stroke="#ffd700" stroke-width="2" stroke-dasharray="5 3"></rect>'
+      );
+      // Destination rect — solid gold border
+      parts.push(
+        '<rect x="' + a.dest.x + '%" y="' + a.dest.y + '%" width="' + sw + '%" height="' + sh + '%" fill="rgba(255,215,0,0.10)" stroke="#ffd700" stroke-width="2.5"></rect>' +
+        '<text x="' + a.dest.x + '%" y="' + a.dest.y + '%" dy="-3" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#ffd700" pointer-events="none">' + n + '</text>'
+      );
+      // Arrow centroid → dest
+      var scx = a.src.x + sw/2, scy = a.src.y + sh/2;
+      parts.push(
+        '<defs><marker id="mkcutarr' + n + '" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">' +
+          '<path d="M0,0 L0,6 L8,3 z" fill="#ffd700"></path></marker></defs>' +
+        '<line x1="' + scx + '%" y1="' + scy + '%" x2="' + a.dest.x + '%" y2="' + a.dest.y + '%" stroke="#ffd700" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#mkcutarr' + n + ')"></line>'
+      );
+    } else if(a.type === 'shape') {
+      var sc = '#9d4edd';
+      if(a.shape === 'line') {
+        parts.push('<line x1="' + a.x1 + '%" y1="' + a.y1 + '%" x2="' + a.x2 + '%" y2="' + a.y2 + '%" stroke="' + sc + '" stroke-width="2.5" stroke-linecap="round"></line>');
+      } else if(a.shape === 'arrow') {
+        parts.push(
+          '<defs><marker id="mksharr' + n + '" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="' + sc + '"></path></marker></defs>' +
+          '<line x1="' + a.x1 + '%" y1="' + a.y1 + '%" x2="' + a.x2 + '%" y2="' + a.y2 + '%" stroke="' + sc + '" stroke-width="2.5" stroke-linecap="round" marker-end="url(#mksharr' + n + ')"></line>'
+        );
+      } else if(a.shape === 'circle') {
+        var rx = Math.abs(a.x2-a.x1)/2, ry = Math.abs(a.y2-a.y1)/2;
+        var ecx = (a.x1+a.x2)/2, ecy = (a.y1+a.y2)/2;
+        parts.push('<ellipse cx="' + ecx + '%" cy="' + ecy + '%" rx="' + rx + '%" ry="' + ry + '%" fill="' + sc + '22" stroke="' + sc + '" stroke-width="2.5"></ellipse>');
+      } else if(a.shape === 'rect') {
+        var rw = Math.abs(a.x2-a.x1), rh = Math.abs(a.y2-a.y1);
+        parts.push('<rect x="' + Math.min(a.x1,a.x2) + '%" y="' + Math.min(a.y1,a.y2) + '%" width="' + rw + '%" height="' + rh + '%" fill="' + sc + '22" stroke="' + sc + '" stroke-width="2.5"></rect>');
+      } else if(a.shape === 'free' && a.path) {
+        var pts = a.path.map(function(p){ return p.x+'% '+p.y+'%'; }).join(', ');
+        parts.push('<polyline points="' + pts + '" fill="none" stroke="' + sc + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>');
+      }
+      // Number label at start point
+      parts.push('<circle cx="' + a.x1 + '%" cy="' + a.y1 + '%" r="9" fill="' + sc + '" stroke="var(--bg0)" stroke-width="1.5"></circle>' +
+        '<text x="' + a.x1 + '%" y="' + a.y1 + '%" dy="0.35em" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" font-weight="700" fill="var(--bg0)" pointer-events="none">' + n + '</text>');
     }
 
     // Position destination marker (gold diamond) + arrow
@@ -5636,6 +6213,43 @@ function mkRenderAnnotationList() {
   var regOpts = mkRegistryOptionsHtml();
   wrap.innerHTML = MK.annotations.map(function(a, i) {
     var n = i + 1, cat = mkCatById(a.cat);
+
+    // Cut-and-move annotation
+    if(a.type === 'cut') {
+      var noteVal = (a.fields && a.fields.note) ? _esc(a.fields.note) : '';
+      return '<div class="mk-anno-item mk-anno-cut" id="mk-anno-' + a.id + '">' +
+        '<div class="mk-anno-top">' +
+          '<span class="mk-anno-num">' + n + '</span>' +
+          '<span class="mk-anno-type-badge">\u29c9 Copy &amp; Place</span>' +
+          '<button class="mk-anno-del" onclick="mkDeleteAnnotation(' + a.id + ')">\u2715</button>' +
+        '</div>' +
+        '<div class="mk-anno-fields">' +
+          '<div><div class="mk-field-label">Source region</div>' +
+            '<div style="font-size:11px;color:var(--t3);">' + Math.round(a.src.x) + '\u2013' + Math.round(a.src.x2) + '% \u00d7 ' + Math.round(a.src.y) + '\u2013' + Math.round(a.src.y2) + '%</div></div>' +
+          '<div><div class="mk-field-label">Destination</div>' +
+            '<div style="font-size:11px;color:var(--t3);">' + Math.round(a.dest.x) + '%, ' + Math.round(a.dest.y) + '%</div></div>' +
+          '<div><div class="mk-field-label">Note (optional)</div>' +
+            '<textarea placeholder="Describe why this element should move\u2026" oninput="mkSetField(' + a.id + ',\'note\',this.value)">' + noteVal + '</textarea></div>' +
+        '</div></div>';
+    }
+
+    // Shape annotation
+    if(a.type === 'shape') {
+      var shapeLabels = { arrow:'Arrow', line:'Line', circle:'Circle', rect:'Rectangle', free:'Freehand' };
+      var noteVal2 = (a.fields && a.fields.note) ? _esc(a.fields.note) : '';
+      return '<div class="mk-anno-item mk-anno-shape" id="mk-anno-' + a.id + '">' +
+        '<div class="mk-anno-top">' +
+          '<span class="mk-anno-num">' + n + '</span>' +
+          '<span class="mk-anno-type-badge">\u270f ' + (shapeLabels[a.shape]||a.shape) + '</span>' +
+          '<button class="mk-anno-del" onclick="mkDeleteAnnotation(' + a.id + ')">\u2715</button>' +
+        '</div>' +
+        '<div class="mk-anno-fields">' +
+          '<div><div class="mk-field-label">Note (optional)</div>' +
+            '<textarea placeholder="Describe what this shape is highlighting\u2026" oninput="mkSetField(' + a.id + ',\'note\',this.value)">' + noteVal2 + '</textarea></div>' +
+        '</div></div>';
+    }
+
+    // Standard pin/box annotation
     var catOptions = MK_CATS.map(function(c) {
       return '<option value="' + c.id + '"' + (a.cat === c.id ? ' selected' : '') + '>' + c.label + '</option>';
     }).join('');
@@ -5880,6 +6494,23 @@ function mkBuildDescription(s) {
   var lines = ['Screenshot redesign notes' + (proj ? ' \u2014 ' + proj.name : '') + ':', ''];
   s.annotations.forEach(function(a, i) {
     var n = i+1, cat = mkCatById(a.cat), f = a.fields || {};
+
+    if(a.type === 'cut') {
+      lines.push(n + '. [COPY & PLACE] Source region: ' +
+        Math.round(a.src.x) + '\u2013' + Math.round(a.src.x2) + '% across, ' +
+        Math.round(a.src.y) + '\u2013' + Math.round(a.src.y2) + '% down.' +
+        ' Move to: ' + Math.round(a.dest.x) + '%, ' + Math.round(a.dest.y) + '% (see arrow on screenshot).' +
+        (f.note ? ' Note: ' + f.note : ''));
+      return;
+    }
+    if(a.type === 'shape') {
+      var shapeLabels = { arrow:'Arrow', line:'Line', circle:'Circle', rect:'Rectangle highlight', free:'Freehand mark' };
+      lines.push(n + '. [SHAPE \u2014 ' + (shapeLabels[a.shape]||a.shape).toUpperCase() + '] ' +
+        'from ' + Math.round(a.x1) + '%, ' + Math.round(a.y1) + '% to ' + Math.round(a.x2) + '%, ' + Math.round(a.y2) + '%.' +
+        (f.note ? ' ' + f.note : ''));
+      return;
+    }
+
     var loc = a.type === 'pin'
       ? 'at roughly ' + Math.round(a.x) + '%, ' + Math.round(a.y) + '%'
       : 'in region ' + Math.round(a.x) + '\u2013' + Math.round(a.x2) + '% across, ' + Math.round(a.y) + '\u2013' + Math.round(a.y2) + '% down';
@@ -5928,17 +6559,75 @@ function mkExportImage(session, isActiveSession, cb) {
           ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI*2);
           ctx.fillStyle = col; ctx.fill();
           ctx.strokeStyle = '#0d0f14'; ctx.lineWidth = 3; ctx.stroke();
-          ctx.fillStyle = '#0d0f14'; ctx.fillText(n, px, py);
-        } else {
+          ctx.fillStyle = '#0d0f14';
+          ctx.font = 'bold 22px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(n, px, py);
+
+        } else if(a.type === 'box') {
           var rx = a.x/100*W, ry = a.y/100*H, rw = (a.x2-a.x)/100*W, rh = (a.y2-a.y)/100*H;
-          ctx.fillStyle = col + '28'; // ~16% opacity
-          ctx.fillRect(rx, ry, rw, rh);
-          ctx.strokeStyle = col; ctx.lineWidth = 3;
-          ctx.strokeRect(rx, ry, rw, rh);
+          ctx.fillStyle = col + '28'; ctx.fillRect(rx, ry, rw, rh);
+          ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(rx, ry, rw, rh);
           ctx.fillStyle = col;
+          ctx.font = 'bold 22px "JetBrains Mono", monospace';
           ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
           ctx.fillText(n, rx+4, ry-4);
+
+        } else if(a.type === 'cut') {
+          // Source region — dashed gold
+          var sw = (a.src.x2-a.src.x)/100*W, sh = (a.src.y2-a.src.y)/100*H;
+          var sx = a.src.x/100*W, sy2 = a.src.y/100*H;
+          ctx.save(); ctx.setLineDash([12, 6]);
+          ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+          ctx.strokeRect(sx, sy2, sw, sh);
+          ctx.fillStyle = 'rgba(255,215,0,0.12)'; ctx.fillRect(sx, sy2, sw, sh);
+          ctx.restore();
+          // Destination — solid gold
+          var dx = a.dest.x/100*W, dy = a.dest.y/100*H;
+          ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+          ctx.strokeRect(dx, dy, sw, sh);
+          ctx.fillStyle = 'rgba(255,215,0,0.10)'; ctx.fillRect(dx, dy, sw, sh);
+          ctx.fillStyle = '#ffd700';
+          ctx.font = 'bold 20px "JetBrains Mono", monospace';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+          ctx.fillText(n, dx+4, dy-4);
+          // Arrow
+          mkDrawArrow(ctx, sx+sw/2, sy2+sh/2, dx, dy, '#ffd700');
+
+        } else if(a.type === 'shape') {
+          var sc = '#9d4edd';
+          ctx.strokeStyle = sc; ctx.lineWidth = 3;
+          ctx.fillStyle = sc + '28';
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          if(a.shape === 'line') {
+            ctx.beginPath(); ctx.moveTo(a.x1/100*W, a.y1/100*H); ctx.lineTo(a.x2/100*W, a.y2/100*H); ctx.stroke();
+          } else if(a.shape === 'arrow') {
+            mkDrawArrow(ctx, a.x1/100*W, a.y1/100*H, a.x2/100*W, a.y2/100*H, sc);
+          } else if(a.shape === 'circle') {
+            var erx = Math.abs(a.x2-a.x1)/200*W, ery = Math.abs(a.y2-a.y1)/200*H;
+            var ecx2 = (a.x1+a.x2)/200*W, ecy2 = (a.y1+a.y2)/200*H;
+            ctx.beginPath(); ctx.ellipse(ecx2, ecy2, erx, ery, 0, 0, Math.PI*2);
+            ctx.fill(); ctx.stroke();
+          } else if(a.shape === 'rect') {
+            var rrw = Math.abs(a.x2-a.x1)/100*W, rrh = Math.abs(a.y2-a.y1)/100*H;
+            var rrx = Math.min(a.x1,a.x2)/100*W, rry = Math.min(a.y1,a.y2)/100*H;
+            ctx.fillRect(rrx, rry, rrw, rrh); ctx.strokeRect(rrx, rry, rrw, rrh);
+          } else if(a.shape === 'free' && a.path && a.path.length > 1) {
+            ctx.beginPath();
+            a.path.forEach(function(pt, pi) {
+              if(pi===0) ctx.moveTo(pt.x/100*W, pt.y/100*H);
+              else ctx.lineTo(pt.x/100*W, pt.y/100*H);
+            });
+            ctx.stroke();
+          }
+          // Number dot at start
+          ctx.beginPath(); ctx.arc(a.x1/100*W, a.y1/100*H, 14, 0, Math.PI*2);
+          ctx.fillStyle = sc; ctx.fill();
+          ctx.strokeStyle = '#0d0f14'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.fillStyle = '#0d0f14';
+          ctx.font = 'bold 16px "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(n, a.x1/100*W, a.y1/100*H);
         }
 
         // Position destination marker + arrow
