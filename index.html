@@ -853,8 +853,8 @@
   .mk-anno-cut { border-left: 3px solid var(--gold); }
   .mk-anno-cut .mk-anno-type-badge { background: rgba(255,215,0,0.12); color: var(--gold); }
 
-  /* Copy-preview canvas — sized to match rendered image, updated during drag */
-  #mk-copy-preview { width: 100%; opacity: 0.92; }
+  /* Copy-preview canvas — explicit size set by JS; no CSS width override */
+  #mk-copy-preview { opacity: 0.92; }
 
   /* Shape annotation item */
   .mk-anno-shape { border-left: 3px solid var(--purple); }
@@ -5511,9 +5511,66 @@ function mkGetTouch(e) {
   return t ? { clientX: t.clientX, clientY: t.clientY } : null;
 }
 
-function mkTouchStart(e)  { if(MK.mode === 'move') return; var t = mkGetTouch(e); if(t){ e.preventDefault(); mkPointerDown(t.clientX, t.clientY); } }
-function mkTouchMove(e)   { if(MK.mode === 'move') return; var t = mkGetTouch(e); if(t){ e.preventDefault(); mkPointerMove(t.clientX, t.clientY); } }
-function mkTouchEnd(e)    { if(MK.mode === 'move') return; var t = mkGetTouch(e); e.preventDefault(); mkPointerUp(t ? t.clientX : null, t ? t.clientY : null); }
+// Returns true if a touch at (cx,cy) client coords lands inside the current
+// copy destination rect — used in cut phase 2 to decide whether to take
+// over the touch (drag copy) or pass it through (native scroll).
+function mkTouchOnCopy(cx, cy) {
+  if(MK.mode !== 'cut' || MK_CUT.phase !== 2 || !MK_CUT.dest || !MK_CUT.src) return false;
+  var p = mkClientToPercent(cx, cy);
+  var sw = MK_CUT.src.x2 - MK_CUT.src.x;
+  var sh = MK_CUT.src.y2 - MK_CUT.src.y;
+  var d  = MK_CUT.dest;
+  // Add a small hit-area margin (2%) so it's easy to grab on a phone
+  return p.x >= d.x - 2 && p.x <= d.x + sw + 2 &&
+         p.y >= d.y - 2 && p.y <= d.y + sh + 2;
+}
+
+function mkTouchStart(e) {
+  if(MK.mode === 'move') return;
+  var t = mkGetTouch(e); if(!t) return;
+  // Cut phase 2: only intercept if finger is on the copy rect
+  if(MK.mode === 'cut' && MK_CUT.phase === 2) {
+    if(mkTouchOnCopy(t.clientX, t.clientY)) {
+      e.preventDefault();
+      mkPointerDown(t.clientX, t.clientY);
+    }
+    // else: pass through so canvas wrap can scroll natively
+    return;
+  }
+  e.preventDefault();
+  mkPointerDown(t.clientX, t.clientY);
+}
+
+function mkTouchMove(e) {
+  if(MK.mode === 'move') return;
+  var t = mkGetTouch(e); if(!t) return;
+  // In cut phase 2, only intercept if we have an active drag
+  if(MK.mode === 'cut' && MK_CUT.phase === 2) {
+    if(MK_CUT.dragStart) {
+      e.preventDefault();
+      mkPointerMove(t.clientX, t.clientY);
+    }
+    return;
+  }
+  e.preventDefault();
+  mkPointerMove(t.clientX, t.clientY);
+}
+
+function mkTouchEnd(e) {
+  if(MK.mode === 'move') return;
+  var t = mkGetTouch(e);
+  // In cut phase 2, only intercept if we were dragging
+  if(MK.mode === 'cut' && MK_CUT.phase === 2) {
+    if(MK_CUT.dragStart) {
+      e.preventDefault();
+      mkPointerUp(t ? t.clientX : null, t ? t.clientY : null);
+    }
+    return;
+  }
+  e.preventDefault();
+  mkPointerUp(t ? t.clientX : null, t ? t.clientY : null);
+}
+
 function mkTouchCancel(e) { mkCancelPress(); MK.drawing = null; mkRenderOverlay(); }
 
 var _mkMD = false;
@@ -5706,6 +5763,9 @@ function mkCutPointerUp(cx, cy) {
     MK_CUT.dest = { x: MK_CUT.src.x + 4, y: MK_CUT.src.y + 4 }; // slight offset so copy is visibly separate
     MK_CUT.dragStart = null;
     MK_CUT.phase = 2;
+    // Allow scroll in phase 2 — touch on copy overrides this selectively
+    var wrap = document.getElementById('mk-canvas-wrap');
+    if(wrap) wrap.style.touchAction = 'pan-y';
     mkRenderCutOverlay();
     mkUpdateCopyPreview();
     var hint = document.getElementById('mk-mode-hint');
@@ -5757,30 +5817,31 @@ function mkCancelCut() {
 // at the destination, giving a live pixel-accurate preview while dragging.
 function mkUpdateCopyPreview() {
   if(!MK.imageDataUrl || !MK_CUT.src || !MK_CUT.dest) return;
-  var imgEl  = document.getElementById('mk-image');
-  var prev   = document.getElementById('mk-copy-preview');
+  var imgEl = document.getElementById('mk-image');
+  var prev  = document.getElementById('mk-copy-preview');
   if(!imgEl || !prev) return;
 
-  var rendW  = imgEl.offsetWidth;
-  var rendH  = imgEl.offsetHeight;
+  var rendW = imgEl.offsetWidth;
+  var rendH = imgEl.offsetHeight;  // full image height, not visible viewport
   var s = MK_CUT.src;
 
-  // Source pixel coords in the rendered image space
-  var srcX   = s.x  / 100 * rendW;
-  var srcY   = s.y  / 100 * rendH;
-  var srcW   = (s.x2 - s.x) / 100 * rendW;
-  var srcH   = (s.y2 - s.y) / 100 * rendH;
+  // Source region in rendered-image pixel space
+  var srcX = s.x  / 100 * rendW;
+  var srcY = s.y  / 100 * rendH;
+  var srcW = (s.x2 - s.x) / 100 * rendW;
+  var srcH = (s.y2 - s.y) / 100 * rendH;
 
-  // Destination pixel coords
-  var dstX   = MK_CUT.dest.x / 100 * rendW;
-  var dstY   = MK_CUT.dest.y / 100 * rendH;
+  // Destination top-left in rendered-image pixel space
+  var dstX = MK_CUT.dest.x / 100 * rendW;
+  var dstY = MK_CUT.dest.y / 100 * rendH;
 
   if(srcW < 1 || srcH < 1) return;
 
-  // Size preview canvas to rendered image dimensions
+  // Canvas covers the full image at 1:1 pixel mapping
+  // (no CSS width override — JS sets exact size)
   if(prev.width !== rendW || prev.height !== rendH) {
-    prev.width  = rendW;
-    prev.height = rendH;
+    prev.width        = rendW;
+    prev.height       = rendH;
     prev.style.width  = rendW + 'px';
     prev.style.height = rendH + 'px';
   }
@@ -5788,7 +5849,7 @@ function mkUpdateCopyPreview() {
   var ctx = prev.getContext('2d');
   ctx.clearRect(0, 0, rendW, rendH);
 
-  // Draw the source pixels at the destination position
+  // Draw source pixels at destination — exact same size, no scaling
   ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, dstX, dstY, srcW, srcH);
 
   // Gold border around the placed copy
