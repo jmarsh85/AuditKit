@@ -3268,7 +3268,7 @@ function _findFnDecls(script) {
   return funcs;
 }
 
-function _hashFnBody(lines, decl) {
+function _getFnBody(lines, decl) {
   var chunk = [], braceDepth = 0, bodyStarted = false;
   for(var i = decl.lineIdx; i < lines.length; i++) {
     var line = lines[i];
@@ -3284,14 +3284,21 @@ function _hashFnBody(lines, decl) {
     }
     if(bodyStarted && braceDepth <= 0 && chunk.length > 1) break;
   }
-  return _fnHash(normFnText(chunk.join('\n')));
+  return chunk.join('\n');
+}
+
+function _hashFnBody(lines, decl) {
+  return _fnHash(normFnText(_getFnBody(lines, decl)));
 }
 
 function _buildFnMap(script) {
   var lines = script.split('\n');
   var decls = _findFnDecls(script);
   var map = {};
-  decls.forEach(function(d) { map[d.name] = _hashFnBody(lines, d); });
+  decls.forEach(function(d) {
+    var body = _getFnBody(lines, d);
+    map[d.name] = { hash: _fnHash(normFnText(body)), body: body };
+  });
   return map;
 }
 
@@ -3306,10 +3313,10 @@ function runCodeDiff(srcA, srcB) {
   var mapB = _buildFnMap(_extractScripts(srcB));
   var modified = [], added = [], removed = [];
   Object.keys(mapB).forEach(function(name) {
-    if(!mapA[name]) added.push({ name: name });
-    else if(mapA[name] !== mapB[name]) modified.push({ name: name });
+    if(!mapA[name]) added.push({ name: name, bodyB: mapB[name].body });
+    else if(mapA[name].hash !== mapB[name].hash) modified.push({ name: name, bodyA: mapA[name].body, bodyB: mapB[name].body });
   });
-  Object.keys(mapA).forEach(function(name) { if(!mapB[name]) removed.push({ name: name }); });
+  Object.keys(mapA).forEach(function(name) { if(!mapB[name]) removed.push({ name: name, bodyA: mapA[name].body }); });
   return { modified: modified, added: added, removed: removed,
            totalA: Object.keys(mapA).length, totalB: Object.keys(mapB).length };
 }
@@ -4788,17 +4795,34 @@ function buildAuditPrompt() {
     } else {
       if(cd.modified.length) {
         p += '### Modified Functions (' + cd.modified.length + ')\n';
-        p += 'These functions existed in both versions but their code changed:\n';
-        p += cd.modified.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
+        p += 'Before/after code shown for each (capped at 60 lines).\n\n';
+        cd.modified.forEach(function(f) {
+          p += '#### ' + f.name + '()\n';
+          if(f.bodyA && f.bodyB) {
+            p += 'Version A (stable):\n```js\n' + f.bodyA.split('\n').slice(0,60).join('\n') + '\n```\n';
+            p += 'Version B (new):\n```js\n' + f.bodyB.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+          }
+        });
       }
       if(cd.removed.length) {
         p += '### Removed Functions (' + cd.removed.length + ')\n';
-        p += 'These exist in A but are gone from B — verify intentional:\n';
-        p += cd.removed.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
+        p += 'These exist in A but are gone from B — verify intentional.\n\n';
+        cd.removed.forEach(function(f) {
+          p += '#### ' + f.name + '()\n';
+          if(f.bodyA) {
+            p += 'Version A (stable):\n```js\n' + f.bodyA.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+          }
+        });
       }
       if(cd.added.length) {
         p += '### New Functions (' + cd.added.length + ')\n';
-        p += cd.added.map(function(f){ return '- ' + f.name + '()'; }).join('\n') + '\n\n';
+        p += 'These are new in B — confirm they are intentional additions.\n\n';
+        cd.added.forEach(function(f) {
+          p += '#### ' + f.name + '()\n';
+          if(f.bodyB) {
+            p += 'Version B (new):\n```js\n' + f.bodyB.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+          }
+        });
       }
     }
   }
