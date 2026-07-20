@@ -1152,15 +1152,30 @@
     padding: 20px;
     width: 100%;
     max-width: 440px;
+    max-height: calc(100vh - 40px);
     display: flex;
     flex-direction: column;
     gap: 14px;
+    overflow: hidden; /* clips the box's own rounded corners — actual scrolling happens in #modal-body below */
   }
   #modal-title {
     font-family: 'Syne', sans-serif;
     font-size: 15px;
     font-weight: 800;
     color: var(--t1);
+    flex-shrink: 0;
+  }
+  #modal-body {
+    flex: 1 1 auto;   /* without this, iOS Safari can leave the box at its initial content
+                         height instead of growing to fill #modal-box, so overflow-y:auto
+                         never actually gets anything to scroll */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;    /* required for a flex child to shrink below its content size and scroll,
+                         instead of forcing the parent to grow past max-height */
+  }
+  #modal-actions {
+    flex-shrink: 0;
   }
 
   /* ── AUDIT TOOLBAR ── */
@@ -1952,6 +1967,13 @@
             <div class="sec-label">Notes</div>
             <textarea id="np-notes" placeholder="Brief description..." style="min-height:60px"></textarea>
           </div>
+          <div class="col">
+            <div class="sec-label">Project Template (optional)</div>
+            <select id="np-template" style="height:36px;font-size:14px">
+              <option value="">Blank project</option>
+            </select>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px">Pre-seeds the Registry with named objects for this project type</div>
+          </div>
           <div class="row">
             <button class="btn teal" onclick="createProject()">Create Project</button>
             <button class="btn" onclick="toggleNewProjectForm()">Cancel</button>
@@ -2197,6 +2219,14 @@
     <!-- ── LOG SCREEN ── -->
     <div id="screen-log" class="screen">
 
+      <!-- VIEW TOGGLE -->
+      <div style="display:flex;gap:6px;margin-bottom:4px">
+        <button class="filter-chip active" id="log-view-bug-btn" onclick="setLogView('buglog',this)">🐛 Bug Log</button>
+        <button class="filter-chip" id="log-view-cl-btn" onclick="setLogView('changelog',this)">📜 Changelog</button>
+      </div>
+
+      <div id="log-buglog-view">
+
       <!-- LOG FORM -->
       <div class="log-form">
         <div class="sec-label">New Entry</div>
@@ -2241,6 +2271,20 @@
         </div>
       </div>
 
+      </div>
+
+      <!-- CHANGELOG VIEW -->
+      <div id="log-changelog-view" style="display:none;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <select id="log-cl-project-sel" style="flex:1;height:36px;font-size:16px" onchange="renderChangelogInTab()">
+            <option value="">Select project…</option>
+          </select>
+          <button class="btn sm" onclick="addManualChangelogEntry()">+ Note</button>
+          <button class="btn sm" onclick="exportChangelogMarkdown()">⬆ Export</button>
+        </div>
+        <div id="log-changelog-body"></div>
+      </div>
+
     </div>
 
     <!-- ── MOCKUP SCREEN ── -->
@@ -2282,6 +2326,7 @@
               <button class="mk-tool-btn" id="mk-mode-box"  data-tip="Box — drag to annotate"    onclick="mkSetMode('box')"  oncontextmenu="return false">▭</button>
               <button class="mk-tool-btn" id="mk-mode-cut"  data-tip="Copy &amp; Place — drag to copy a region, drag to place it" onclick="mkSetMode('cut')" oncontextmenu="return false">⧉</button>
               <button class="mk-tool-btn" id="mk-mode-shape" data-tip="Shapes — arrows, lines, freehand" onclick="mkSetMode('shape')" oncontextmenu="return false">✏</button>
+              <button class="mk-tool-btn" id="mk-mode-edit" data-tip="Edit — hold an annotation to move or resize it" onclick="mkSetMode('edit')" oncontextmenu="return false">✋</button>
               <span class="mk-toolbar-sep"></span>
               <button class="mk-tool-btn" data-tip="Undo last annotation" onclick="mkUndo()"     oncontextmenu="return false">↶</button>
               <button class="mk-tool-btn" data-tip="Clear all annotations" onclick="mkClearAll()" oncontextmenu="return false" style="color:var(--red)">✕</button>
@@ -2411,6 +2456,42 @@
         </div>
       </div>
 
+      <!-- PWA OBJECT LIBRARY -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">PWA Object Library</span>
+          <span style="font-size:10px;color:var(--t3)">shared across all projects</span>
+        </div>
+        <div style="padding:12px 14px">
+
+          <!-- Element Types -->
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Element Types</div>
+          <div id="lib-types-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
+          <button class="btn sm teal" onclick="pwaAddElementTypeModal()" style="margin-bottom:16px">+ Add Type</button>
+
+          <div style="border-top:1px solid var(--border1);margin-bottom:14px"></div>
+
+          <!-- Screen Archetypes -->
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Screen Archetypes</div>
+          <div id="lib-archetypes-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
+          <button class="btn sm teal" onclick="pwaAddArchetypeModal()" style="margin-bottom:16px">+ Add Archetype</button>
+
+          <div style="border-top:1px solid var(--border1);margin-bottom:14px"></div>
+
+          <!-- Common Patterns -->
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Interaction Patterns</div>
+          <div id="lib-patterns-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
+          <button class="btn sm teal" onclick="pwaAddPatternModal()">+ Add Pattern</button>
+
+          <div style="border-top:1px solid var(--border1);margin:14px 0 10px"></div>
+
+          <!-- Project Templates -->
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Project Templates</div>
+          <div id="lib-templates-list" style="display:flex;flex-direction:column;gap:4px"></div>
+
+        </div>
+      </div>
+
     </div>
   </div><!-- /main -->
 
@@ -2527,6 +2608,8 @@ var AK = {
   lastDiff: null,
   lastScan: null,
   lastPromoteDiff: null,
+  pwaLibrary: null,   // hydrated on load from getDefaultPwaLibrary()
+  versionHistory: {}, // { [projectId]: [ VersionRecord, ... ] newest-first } — metadata only, no full HTML
 
   STORAGE_KEY: 'auditkit_v1',
 
@@ -2538,7 +2621,9 @@ var AK = {
       registryBaseline: this.registryBaseline,
       changelog: this.changelog,
       log: this.log,
-      activeProject: this.activeProject
+      activeProject: this.activeProject,
+      pwaLibrary: this.pwaLibrary,
+      versionHistory: this.versionHistory
     }));
   },
 
@@ -2576,8 +2661,11 @@ var AK = {
       this.changelog = d.changelog || {};
       this.log = d.log || [];
       this.activeProject = d.activeProject || null;
+      this.pwaLibrary = d.pwaLibrary ? mergePwaLibrary(d.pwaLibrary) : getDefaultPwaLibrary();
+      this.versionHistory = d.versionHistory || {};
     } catch(e) {}
     this.migrateLegacyRegistry();
+    syncLibraryGlobals();
   },
 
   // ── One-time migration: old flat AK.registry rows become each project's
@@ -2655,6 +2743,7 @@ function toggleNewProjectForm() {
   f.classList.toggle('open');
   if(f.classList.contains('open')) {
     document.getElementById('np-name').focus();
+    populateTemplateSelect();
   }
 }
 
@@ -2687,6 +2776,16 @@ function createProject() {
   renderProjects();
   populateAllProjectSelects();
   updateActiveProjectHeader();
+
+  var tmplId = (document.getElementById('np-template') || {}).value;
+  if(tmplId) {
+    var tmpl = (AK.pwaLibrary.projectTemplates || []).find(function(t){ return t.id === tmplId; });
+    if(tmpl && tmpl.screens) {
+      var seeded = seedFromTemplate(tmpl, proj.id);
+      toast('Project created: ' + name + ' — ' + seeded + ' objects seeded from template');
+      return;
+    }
+  }
   toast('Project created: ' + name);
 }
 
@@ -2712,6 +2811,7 @@ function renderProjects() {
       '</div>' +
       '<div class="project-meta">' +
         '<span class="project-meta-item">ver: <span>' + _esc(p.version) + '</span></span>' +
+        ((AK.versionHistory[p.id]||[]).length ? '<span class="project-meta-item" style="color:var(--t3)">(' + AK.versionHistory[p.id].length + ' promotions)</span>' : '') +
         '<span class="project-meta-item">elements: <span>' + regCount + '</span></span>' +
         '<span class="project-meta-item">log: <span>' + logCount + '</span></span>' +
         (flagged ? '<span class="project-meta-item" style="color:var(--red)">flagged: <span>' + flagged + '</span></span>' : '') +
@@ -3034,7 +3134,7 @@ function auditSelectProject() {
   if(baseline) {
     document.getElementById('html-a').value = baseline;
     document.getElementById('html-a').style.display = 'none';
-    markSlotFulfilled('a', 'Baseline loaded', baseline.length);
+    markSlotFulfilled('a', 'Baseline loaded', baseline.length, 'baseline');
     toast('Baseline auto-loaded for ' + (proj ? proj.name : 'project'));
   }
 }
@@ -3185,12 +3285,18 @@ async function ghLoadIntoSlot(slot, path) {
 
     statusEl.textContent = '✓ ' + filename + ' → Slot ' + slot.toUpperCase();
     toast('Loaded into Version ' + slot.toUpperCase() + ': ' + filename);
+    SLOT_SOURCE[slot] = 'github';
 
   } catch(e) {
     statusEl.textContent = 'Failed: ' + e.message;
     toast('Could not load: ' + e.message);
   }
 }
+
+// ── Tracks how each comparison slot's HTML was loaded, so the AI prompt can
+// accurately describe Version A instead of always assuming it's GitHub-stable.
+var SLOT_SOURCE = { a: null, b: null };
+
 // ── Slot paste toggle (hide/show textarea to avoid rendering overhead)
 function toggleSlotPaste(slot) {
   var ta = document.getElementById('html-' + slot);
@@ -3200,7 +3306,7 @@ function toggleSlotPaste(slot) {
     // Collapsing the paste area — if it has content, show it as fulfilled (same as File/Drop)
     ta.style.display = 'none';
     if(ta.value.trim()) {
-      markSlotFulfilled(slot, 'Pasted', ta.value.length);
+      markSlotFulfilled(slot, 'Pasted', ta.value.length, 'paste');
     }
   } else {
     ta.style.display = 'block';
@@ -3213,7 +3319,7 @@ function toggleSlotPaste(slot) {
 function onSlotPasteInput(slot) {
   var ta = document.getElementById('html-' + slot);
   if(ta.value.trim()) {
-    markSlotFulfilled(slot, 'Pasted', ta.value.length);
+    markSlotFulfilled(slot, 'Pasted', ta.value.length, 'paste');
   } else {
     var info = document.getElementById('slot-' + slot + '-info');
     info.style.display = 'none'; info.textContent = '';
@@ -3246,13 +3352,14 @@ function clearAudit() {
 }
 
 // ── Shared "this slot has content" UI state — used by File, Drop, and Paste
-function markSlotFulfilled(slot, label, charCount) {
+function markSlotFulfilled(slot, label, charCount, source) {
   var info = document.getElementById('slot-' + slot + '-info');
   info.textContent = '✓ ' + label + ' — ' + Math.round(charCount / 1024) + ' KB';
   info.style.display = 'block';
   var zone = document.getElementById('drop-' + slot);
   zone.textContent = '✓ ' + label;
   zone.classList.add('has-file');
+  if(source) SLOT_SOURCE[slot] = source;
 }
 
 function loadFile(slot, input) {
@@ -3263,7 +3370,7 @@ function loadFile(slot, input) {
     document.getElementById('html-' + slot).value = e.target.result;
     // Don't show the textarea — show a compact info chip instead
     document.getElementById('html-' + slot).style.display = 'none';
-    markSlotFulfilled(slot, file.name, e.target.result.length);
+    markSlotFulfilled(slot, file.name, e.target.result.length, 'file');
     toast('Loaded: ' + file.name);
   };
   reader.readAsText(file);
@@ -3279,7 +3386,7 @@ function dropFile(slot, e) {
   reader.onload = function(ev) {
     document.getElementById('html-' + slot).value = ev.target.result;
     document.getElementById('html-' + slot).style.display = 'none';
-    markSlotFulfilled(slot, file.name, ev.target.result.length);
+    markSlotFulfilled(slot, file.name, ev.target.result.length, 'file');
     toast('Loaded: ' + file.name);
   };
   reader.readAsText(file);
@@ -3719,6 +3826,36 @@ function renderRegGuidance(projId, added, removed, changed, unexpected) {
 }
 
 
+// ── Semver helpers for version bump at promotion ──
+// Parse "v2.7.1" / "2.7" / "v3" → {major, minor, patch} or null
+function parseSemver(v) {
+  var m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec((v||'').trim());
+  if(!m) return null;
+  return { major: parseInt(m[1]), minor: parseInt(m[2]||'0'), patch: parseInt(m[3]||'0') };
+}
+// ── Buckets a promote diff by screen, per kind. Shared by the grouped triage
+// summary (structural display, no AI) and the AI summary generator (context input).
+function buildScreenBreakdown(d) {
+  var out = {};
+  ['added','removed','restored','modified'].forEach(function(kind) {
+    var arr = d[kind] || [];
+    arr.forEach(function(item) {
+      var screen = item.screen || 'global';
+      if(!out[screen]) out[screen] = { added:0, removed:0, restored:0, modified:0 };
+      out[screen][kind]++;
+    });
+  });
+  return out;
+}
+
+function bumpSemver(v, kind) {
+  var s = parseSemver(v);
+  if(!s) return null;
+  if(kind === 'major') return 'v' + (s.major+1) + '.0.0';
+  if(kind === 'minor') return 'v' + s.major + '.' + (s.minor+1) + '.0';
+  return 'v' + s.major + '.' + s.minor + '.' + (s.patch+1);
+}
+
 // ── Promote to Stable: the deliberate "this is now my new known-good version" action.
 // Diffs the just-audited Slot B against the LOCKED baseline (not the legacy registry),
 // offers optional per-item triage, writes one changelog entry, then replaces the baseline.
@@ -3749,39 +3886,171 @@ function promoteToStable() {
 
   var totalChanges = added.length + removed.length + restored.length + modified.length;
   if(totalChanges === 0) {
-    finalizePromotion(projId, {}); 
+    showPromoteVersionOnlyModal(projId);
     return;
   }
   showPromoteTriageModal(projId);
 }
 
-function showPromoteTriageModal(projId) {
+// ── Zero-changes promotion still needs a version step — no element diff to triage,
+// but skipping the version modal entirely would mean some promotions never offer
+// a version bump. Same version section, no triage list.
+function showPromoteVersionOnlyModal(projId) {
   var proj = AK.projects.find(function(p){ return p.id === projId; });
-  var d = AK.lastPromoteDiff;
-  var rows = '';
-  d.added.forEach(function(e, i) {
-    rows += promoteTriageRow('added', i, '+ Added', e.key, e.label);
-  });
-  d.removed.forEach(function(r, i) {
-    rows += promoteTriageRow('removed', i, '− Removed', r.elId, r.name);
-  });
-  d.restored.forEach(function(e, i) {
-    rows += promoteTriageRow('restored', i, '↺ Restored', e.key, e.label);
-  });
-  d.modified.forEach(function(e, i) {
-    rows += promoteTriageRow('modified', i, '~ Modified', e.key, e.label);
-  });
+  var currentVersion = proj ? proj.version : '';
+  var patchDefault = bumpSemver(currentVersion, 'patch') || currentVersion;
 
   openModal(
     '✓ Promote — ' + (proj ? proj.name : 'Project'),
-    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
-      'Triage is optional — mark items if you want, or just tap Promote to log everything as-is. ' +
-      'Marking <strong>Restore</strong> just notes your intent here; it does not change your HTML file.' +
-    '</div>' +
-    '<div id="promote-triage-list" class="col" style="gap:6px;max-height:50vh;overflow-y:auto">' + rows + '</div>',
+    promoteVersionSectionHtml(currentVersion, patchDefault) +
+    '<div style="font-size:11px;color:var(--t2);line-height:1.7">' +
+      'No element changes detected against the locked baseline. Promoting will still log this version.' +
+    '</div>',
     '<button class="btn teal" onclick="confirmPromote(' + projId + ')">✓ Promote to Stable</button>' +
     '<button class="btn" onclick="closeModal()">Cancel</button>'
   );
+}
+
+function showPromoteTriageModal(projId) {
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var d = AK.lastPromoteDiff;
+  var totalChanges = d.added.length + d.removed.length + d.restored.length + d.modified.length;
+
+  var currentVersion = proj ? proj.version : '';
+  var patchDefault = bumpSemver(currentVersion, 'patch') || currentVersion;
+
+  // Small diffs: show the existing per-item triage cards directly — no grouping needed,
+  // and per-item triage notes are genuinely useful to set at this size.
+  // Large diffs (bulk seed, first promotion, big template load): a wall of 100+ identical
+  // cards is illegible noise. Show a grouped-by-screen summary instead; per-item triage
+  // notes aren't offered at this scale (skipped triage = confirmPromote's existing
+  // "no select found" path, which just logs everything as-is).
+  var DETAIL_THRESHOLD = 15;
+  var bodyHtml;
+  if(totalChanges <= DETAIL_THRESHOLD) {
+    var rows = '';
+    d.added.forEach(function(e, i) {
+      rows += promoteTriageRow('added', i, '+ Added', e.key, e.label);
+    });
+    d.removed.forEach(function(r, i) {
+      rows += promoteTriageRow('removed', i, '− Removed', r.elId, r.name);
+    });
+    d.restored.forEach(function(e, i) {
+      rows += promoteTriageRow('restored', i, '↺ Restored', e.key, e.label);
+    });
+    d.modified.forEach(function(e, i) {
+      rows += promoteTriageRow('modified', i, '~ Modified', e.key, e.label);
+    });
+    bodyHtml = '<div id="promote-triage-list" class="col" style="gap:6px">' + rows + '</div>';
+  } else {
+    bodyHtml = promoteGroupedSummaryHtml(d);
+  }
+
+  openModal(
+    '✓ Promote — ' + (proj ? proj.name : 'Project'),
+    promoteVersionSectionHtml(currentVersion, patchDefault) +
+    '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
+      (totalChanges <= DETAIL_THRESHOLD
+        ? 'Triage is optional — mark items if you want, or just tap Promote to log everything as-is. Marking <strong>Restore</strong> just notes your intent here; it does not change your HTML file.'
+        : totalChanges + ' changes detected — grouped by screen below. Tap "Show individual items" under any group to triage specific elements, or just tap Promote to log everything as-is.') +
+    '</div>' +
+    bodyHtml,
+    '<button class="btn teal" onclick="confirmPromote(' + projId + ')">✓ Promote to Stable</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+// ── Grouped-by-screen summary for large diffs. Each kind (added/removed/restored/modified)
+// gets its own section; within a section, items are bucketed by screen with counts.
+// Detail rows (with per-item triage selects) are rendered but hidden by default, toggled
+// open per-group via promoteToggleGroupDetail — this keeps confirmPromote's index-based
+// triage-<kind>-<i> id contract intact even though the visible summary is grouped.
+function promoteGroupedSummaryHtml(d) {
+  var kindMeta = {
+    added:    { label: '+ Added',    color: 'var(--green)' },
+    removed:  { label: '− Removed',  color: 'var(--red)' },
+    restored: { label: '↺ Restored', color: 'var(--blue)' },
+    modified: { label: '~ Modified', color: 'var(--amber)' }
+  };
+
+  var html = '<div class="col" style="gap:10px">';
+
+  ['added','removed','restored','modified'].forEach(function(kind) {
+    var arr = d[kind];
+    if(!arr.length) return;
+    var meta = kindMeta[kind];
+
+    // Bucket this kind's items by screen, keeping each item's original index i so the
+    // triage select id (triage-<kind>-<i>) still lines up with confirmPromote's read order.
+    var byScreen = {};
+    var order = [];
+    arr.forEach(function(item, i) {
+      var screen = item.screen || 'global';
+      if(!byScreen[screen]) { byScreen[screen] = []; order.push(screen); }
+      byScreen[screen].push(i);
+    });
+
+    var groupId = 'promote-group-' + kind;
+    var screenLines = order.map(function(screen) {
+      var label = (SCREEN_META[screen] && SCREEN_META[screen].name) || screen;
+      return '<div style="font-size:11px;color:var(--t2);padding:2px 0 2px 8px;border-left:2px solid ' + meta.color + '">' +
+        _esc(label) + ' <span style="color:var(--t3)">(' + byScreen[screen].length + ')</span>' +
+      '</div>';
+    }).join('');
+
+    // Detail rows for this kind — same promoteTriageRow markup as the small-diff path,
+    // just wrapped in a collapsed container. Original index i preserved per item.
+    var labelText = { added: '+ Added', removed: '− Removed', restored: '↺ Restored', modified: '~ Modified' }[kind];
+    var detailRows = arr.map(function(item, i) {
+      var key = kind === 'removed' ? item.elId : item.key;
+      var name = kind === 'removed' ? item.name : item.label;
+      return promoteTriageRow(kind, i, labelText, key, name);
+    }).join('');
+
+    html += '<div class="card" style="padding:10px 12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">' +
+        '<span style="font-size:12px;font-weight:700;color:' + meta.color + '">' + meta.label + '</span>' +
+        '<span style="font-size:11px;color:var(--t3)">' + arr.length + ' total</span>' +
+      '</div>' +
+      screenLines +
+      '<button class="btn sm" style="margin-top:8px;width:100%" onclick="promoteToggleGroupDetail(\'' + groupId + '\', this)">Show individual items</button>' +
+      '<div id="' + groupId + '" class="col" style="gap:6px;margin-top:8px;display:none">' + detailRows + '</div>' +
+    '</div>';
+  });
+
+  return html + '</div>';
+}
+
+function promoteToggleGroupDetail(groupId, btn) {
+  var el = document.getElementById(groupId);
+  if(!el) return;
+  var showing = el.style.display !== 'none';
+  el.style.display = showing ? 'none' : 'block';
+  btn.textContent = showing ? 'Show individual items' : 'Hide individual items';
+}
+
+// ── Version section HTML, shared by the triage modal and the zero-changes modal ──
+function promoteVersionSectionHtml(currentVersion, defaultValue) {
+  return '<div class="col" style="margin-bottom:10px">' +
+    '<div class="sec-label">New Version</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+      '<button class="btn sm" onclick="promoteSetVersion(\'patch\')">Patch</button>' +
+      '<button class="btn sm" onclick="promoteSetVersion(\'minor\')">Minor</button>' +
+      '<button class="btn sm" onclick="promoteSetVersion(\'major\')">Major</button>' +
+    '</div>' +
+    '<input type="text" id="promote-version" value="' + _esc(defaultValue) + '">' +
+    '<div style="font-size:10px;color:var(--t3);margin-top:3px">Current: ' + _esc(currentVersion) + ' — this becomes the project version on promote</div>' +
+  '</div>';
+}
+
+function promoteSetVersion(kind) {
+  var projId = AK.lastPromoteDiff ? AK.lastPromoteDiff.projId : AK.activeProject;
+  var proj = AK.projects.find(function(p){ return p.id === projId; });
+  var el = document.getElementById('promote-version');
+  if(!proj || !el) return;
+  var next = bumpSemver(proj.version, kind);
+  if(next) el.value = next;
+  else toast('Current version "' + proj.version + '" is not in v1.2.3 form — type the new version manually');
 }
 
 function promoteTriageRow(kind, idx, label, key, name) {
@@ -3810,11 +4079,14 @@ function confirmPromote(projId) {
       if(sel && sel.value) triage[kind + ':' + key] = sel.value;
     });
   });
-  finalizePromotion(projId, triage);
+  var vEl = document.getElementById('promote-version');
+  var newVersion = vEl && vEl.value.trim() ? vEl.value.trim() : null;
+  finalizePromotion(projId, triage, newVersion);
 }
 
-function finalizePromotion(projId, triage) {
+function finalizePromotion(projId, triage, newVersion) {
   var proj = AK.projects.find(function(p){ return p.id === projId; });
+  if(newVersion && proj) { proj.version = newVersion; }
   var version = proj ? proj.version : 'unknown';
   var d = AK.lastPromoteDiff || { added: [], removed: [], restored: [], modified: [], elsB: AK.lastDiff ? AK.lastDiff.elsB : [] };
 
@@ -3867,14 +4139,54 @@ function finalizePromotion(projId, triage) {
     removed: (d.removed||[]).map(function(r){ return { key: r.elId, name: r.name, note: noteFor('removed', r.elId) }; }),
     restored: (d.restored||[]).map(function(e){ return { key: e.key, name: e.label || e.key, note: noteFor('restored', e.key) }; }),
     modified: (d.modified||[]).map(function(e){ return { key: e.key, name: e.label || e.key, note: noteFor('modified', e.key) }; }),
-    notes: ''
+    notes: '',
+    codeDiff: AK.lastDiff && AK.lastDiff.codeDiff ? {
+      modified: AK.lastDiff.codeDiff.modified.map(function(f){ return f.name; }),
+      added:    AK.lastDiff.codeDiff.added.map(function(f){ return f.name; }),
+      removed:  AK.lastDiff.codeDiff.removed.map(function(f){ return f.name; })
+    } : null
+  });
+
+  // ── Version history record — metadata + integrity hash only, NEVER full HTML.
+  // See spec B.2: full snapshots would exhaust iOS Safari's ~5MB localStorage quota
+  // after roughly 10 promotions. GitHub remains the source of truth for historical HTML.
+  if(!AK.versionHistory[projId]) AK.versionHistory[projId] = [];
+  var srcBEl = document.getElementById('html-b');
+  var srcB = srcBEl ? srcBEl.value : '';
+  var cdRef = AK.lastDiff && AK.lastDiff.codeDiff ? AK.lastDiff.codeDiff : null;
+  AK.versionHistory[projId].unshift({
+    version: version,
+    ts: new Date().toISOString(),
+    elementCount: (d.elsB || []).length,
+    fnCount: cdRef ? cdRef.totalB : 0,
+    changelogId: AK.changelog[projId][0].id,
+    diffSummary: {
+      added: (d.added||[]).length, removed: (d.removed||[]).length,
+      restored: (d.restored||[]).length, modified: (d.modified||[]).length,
+      fnModified: cdRef ? cdRef.modified.length : 0,
+      fnAdded:    cdRef ? cdRef.added.length    : 0,
+      fnRemoved:  cdRef ? cdRef.removed.length  : 0
+    },
+    screenBreakdown: buildScreenBreakdown(d),
+    htmlSize: srcB.length,
+    htmlHash: srcB ? _fnHash(srcB.slice(0, 8000) + srcB.length) : 0,
+    aiSummary: null   // populated on-demand via generateVersionAiSummary — never auto-called, so no surprise token spend
   });
 
   AK.save();
+
+  // ── Baseline HTML rollover — Version B becomes the new stable, so the next
+  // session's Slot A auto-load should reflect it. Quota-guarded: a failure here
+  // should never block the promotion that already succeeded above.
+  if(srcB) {
+    try { localStorage.setItem('ak_baseline_html_' + projId, srcB); }
+    catch(e) { toast('Baseline HTML too large to store — Slot A auto-load will use the previous copy'); }
+  }
+
   closeModal();
   showScreen('registry');
   var total = newElements.length;
-  toast('Promoted — baseline now ' + total + ' elements (' + (d.added||[]).length + ' added, ' + (d.removed||[]).length + ' removed, ' + (d.restored||[]).length + ' restored, ' + (d.modified||[]).length + ' modified)');
+  toast('Promoted to ' + version + ' — baseline now ' + total + ' elements (' + (d.added||[]).length + ' added, ' + (d.removed||[]).length + ' removed, ' + (d.restored||[]).length + ' restored, ' + (d.modified||[]).length + ' modified)');
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3886,17 +4198,114 @@ function showChangelog() {
   if(!proj) { toast('Select a project first'); return; }
   var entries = (AK.changelog[projId] || []).slice();
 
+  var vhHtml = renderVersionHistoryHtml(projId);
+
   var body;
   if(!entries.length) {
-    body = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj.name) + '.<br>' +
+    body = vhHtml + '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj.name) + '.<br>' +
       '<span style="color:var(--t2)">Run a Gap Analysis and tap <strong>✓ Promote to Stable</strong> to start tracking changes.</span></div>';
   } else {
-    body = '<div class="col" style="gap:10px;max-height:60vh;overflow-y:auto">' +
+    body = vhHtml + '<div class="col" style="gap:10px">' +
       entries.map(function(e){ return renderChangelogEntry(e); }).join('') +
     '</div>';
   }
 
   openModal('📜 Changelog — ' + proj.name, body, '<button class="btn" onclick="closeModal()">Close</button>');
+}
+
+// ── Compact version timeline shown above the changelog entries in the same modal ──
+function renderVersionHistoryHtml(projId) {
+  var vh = (AK.versionHistory[projId] || []);
+  if(!vh.length) return '';
+  return '<div style="margin-bottom:12px">' +
+    '<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Version History</div>' +
+    vh.map(function(v, i) {
+      var ds = v.diffSummary || {};
+      var domId = 'vh-summary-' + projId + '-' + i;
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--border1);font-size:11px">' +
+        '<div style="display:flex;align-items:baseline;gap:8px">' +
+          '<span style="color:var(--teal);font-weight:700;font-family:monospace;flex-shrink:0">' + _esc(v.version) + '</span>' +
+          '<span style="color:var(--t3);flex-shrink:0">' + fmtDate(v.ts) + '</span>' +
+          '<span style="color:var(--t2);margin-left:auto;text-align:right">' +
+            v.elementCount + ' el · ' + v.fnCount + ' fn' +
+            ((ds.added||ds.removed||ds.modified) ? ' · <span style="color:var(--amber)">+' + ds.added + '/−' + ds.removed + '/~' + ds.modified + '</span>' : '') +
+          '</span>' +
+        '</div>' +
+        '<div id="' + domId + '">' + renderVersionAiSummaryInner(v, projId, i) + '</div>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+// ── Renders just the AI-summary line for one version record — either the cached
+// summary text, or a button to generate it. Kept separate from the outer entry markup
+// so a single entry can be refreshed in place after generation without re-rendering
+// the whole timeline (and losing scroll position).
+function renderVersionAiSummaryInner(v, projId, idx) {
+  if(v.aiSummary) {
+    return '<div style="color:var(--t2);margin-top:3px;line-height:1.5">' + _esc(v.aiSummary) + '</div>';
+  }
+  return '<button class="btn sm purple" style="margin-top:4px;padding:3px 8px;font-size:10px" ' +
+    'onclick="generateVersionAiSummary(' + projId + ',' + idx + ',this)">✦ AI Summary</button>';
+}
+
+function generateVersionAiSummary(projId, idx, btn) {
+  var key = localStorage.getItem('ak_api_key') || '';
+  if(!key) { toast('Add your API key in the Audit tab first'); return; }
+  var vh = AK.versionHistory[projId];
+  var v = vh && vh[idx];
+  if(!v) { toast('Version record not found'); return; }
+
+  var entry = null;
+  if(AK.changelog[projId]) entry = AK.changelog[projId].find(function(e){ return String(e.id) === String(v.changelogId); });
+
+  btn.disabled = true;
+  btn.textContent = '✦ Generating…';
+
+  var breakdown = v.screenBreakdown || {};
+  var breakdownLines = Object.keys(breakdown).map(function(screen) {
+    var b = breakdown[screen];
+    var label = (SCREEN_META[screen] && SCREEN_META[screen].name) || screen;
+    var parts = [];
+    if(b.added) parts.push(b.added + ' added');
+    if(b.removed) parts.push(b.removed + ' removed');
+    if(b.restored) parts.push(b.restored + ' restored');
+    if(b.modified) parts.push(b.modified + ' modified');
+    return '- ' + label + ': ' + parts.join(', ');
+  }).join('\n');
+
+  var codeLines = '';
+  if(entry && entry.codeDiff) {
+    var cd = entry.codeDiff;
+    if((cd.modified||[]).length) codeLines += 'Functions modified: ' + cd.modified.join(', ') + '\n';
+    if((cd.added||[]).length) codeLines += 'Functions added: ' + cd.added.join(', ') + '\n';
+    if((cd.removed||[]).length) codeLines += 'Functions removed: ' + cd.removed.join(', ') + '\n';
+  }
+
+  var manualNotes = entry && entry.notes ? 'Developer notes for this version: ' + entry.notes + '\n' : '';
+
+  var prompt = 'You are summarizing a version promotion in a PWA development audit tool, for a non-programmer developer who works by having an AI generate full-file replacements each session.\n\n' +
+    'Version: ' + v.version + '\n' +
+    'Element changes by screen:\n' + (breakdownLines || '(none)') + '\n\n' +
+    (codeLines ? codeLines + '\n' : '') +
+    manualNotes +
+    '\nWrite a 1-2 sentence plain-English summary of what this version changed, in terms a non-programmer would understand (what screens/features were affected, not raw counts). No preamble, no markdown, just the summary text.';
+
+  var body = JSON.stringify({ model: getActiveModel(), max_tokens: 200, messages: [{ role: 'user', content: prompt }] });
+  xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' })
+    .then(function(data) {
+      var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('').trim();
+      if(!text) throw new Error('Empty response');
+      v.aiSummary = text;
+      AK.save();
+      var domEl = document.getElementById('vh-summary-' + projId + '-' + idx);
+      if(domEl) domEl.innerHTML = renderVersionAiSummaryInner(v, projId, idx);
+    })
+    .catch(function(e) {
+      toast('AI summary failed: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = '✦ AI Summary';
+    });
 }
 
 function renderChangelogEntry(e) {
@@ -3912,18 +4321,174 @@ function renderChangelogEntry(e) {
       }).join('') +
     '</div>';
   };
+  var codeSection = (function() {
+    if(!e.codeDiff) return '';
+    var cd = e.codeDiff;
+    var codeTotal = (cd.modified||[]).length + (cd.added||[]).length + (cd.removed||[]).length;
+    if(!codeTotal) return '';
+    var html = '<div style="margin-top:6px">' +
+      '<div style="font-size:10px;color:var(--amber);font-weight:600;text-transform:uppercase;letter-spacing:0.03em">Code Changes (' + codeTotal + ')</div>';
+    if(cd.modified && cd.modified.length) html += cd.modified.map(function(n){
+      return '<div style="font-size:11px;color:var(--t1);padding:2px 0 2px 8px;border-left:2px solid var(--amber)">' + _esc(n) + '() <span style="color:var(--t3)">modified</span></div>';
+    }).join('');
+    if(cd.added && cd.added.length) html += cd.added.map(function(n){
+      return '<div style="font-size:11px;color:var(--t1);padding:2px 0 2px 8px;border-left:2px solid var(--green)">' + _esc(n) + '() <span style="color:var(--t3)">added</span></div>';
+    }).join('');
+    if(cd.removed && cd.removed.length) html += cd.removed.map(function(n){
+      return '<div style="font-size:11px;color:var(--t1);padding:2px 0 2px 8px;border-left:2px solid var(--red)">' + _esc(n) + '() <span style="color:var(--t3)">removed</span></div>';
+    }).join('');
+    return html + '</div>';
+  })();
+  var notesEdit = '<div style="margin-top:8px">' +
+    '<textarea placeholder="Add notes to this entry…" ' +
+      'style="width:100%;min-height:36px;font-size:11px;resize:vertical" ' +
+      'onclick="event.stopPropagation()" ' +
+      'onblur="changelogSaveNote(\'' + e.id + '\', this.value)">' + _esc(e.notes||'') + '</textarea>' +
+  '</div>';
   return '<div class="card" style="padding:10px 12px">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline">' +
       '<span style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(e.version || 'unversioned') + '</span>' +
       '<span style="font-size:10px;color:var(--t3)">' + fmtDate(e.ts) + '</span>' +
     '</div>' +
-    (total === 0 && !e.notes ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">No changes vs. previous baseline.</div>' : '') +
-    (e.notes ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">' + _esc(e.notes) + '</div>' : '') +
+    (total === 0 && !e.notes && !codeSection ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">No changes vs. previous baseline.</div>' : '') +
     section(e.added, 'Added', 'var(--green)') +
     section(e.removed, 'Removed', 'var(--red)') +
     section(e.restored, 'Restored', 'var(--blue)') +
     section(e.modified, 'Modified', 'var(--amber)') +
+    codeSection +
+    notesEdit +
   '</div>';
+}
+
+function changelogSaveNote(entryId, note) {
+  var found = false;
+  Object.keys(AK.changelog).forEach(function(pid) {
+    var entry = AK.changelog[pid].find(function(e){ return String(e.id) === String(entryId); });
+    if(entry) { entry.notes = note; found = true; }
+  });
+  if(found) AK.save();
+}
+
+// ── Log tab: Bug Log / Changelog view toggle ──
+var LOG_VIEW = 'buglog';
+
+function setLogView(view, btn) {
+  LOG_VIEW = view;
+  document.getElementById('log-view-bug-btn').classList.toggle('active', view === 'buglog');
+  document.getElementById('log-view-cl-btn').classList.toggle('active', view === 'changelog');
+  document.getElementById('log-buglog-view').style.display = view === 'buglog' ? '' : 'none';
+  document.getElementById('log-changelog-view').style.display = view === 'changelog' ? '' : 'none';
+  if(view === 'changelog') {
+    populateChangelogProjectSel();
+    renderChangelogInTab();
+  }
+}
+
+function populateChangelogProjectSel() {
+  var sel = document.getElementById('log-cl-project-sel');
+  if(!sel) return;
+  var prevVal = sel.value;
+  var opts = '<option value="">Select project…</option>';
+  AK.projects.forEach(function(p) {
+    var selected = (p.id == (prevVal || AK.activeProject)) ? ' selected' : '';
+    opts += '<option value="' + p.id + '"' + selected + '>' + _esc(p.name) + '</option>';
+  });
+  sel.innerHTML = opts;
+}
+
+function renderChangelogInTab() {
+  var projId = document.getElementById('log-cl-project-sel') && document.getElementById('log-cl-project-sel').value;
+  var body = document.getElementById('log-changelog-body');
+  if(!body) return;
+  if(!projId) {
+    body.innerHTML = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>Select a project to see its changelog.</div>';
+    return;
+  }
+  var entries = (AK.changelog[projId] || []).slice();
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  if(!entries.length) {
+    body.innerHTML = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj ? proj.name : 'this project') + '.</div>';
+    return;
+  }
+  body.innerHTML = '<div class="col" style="gap:10px">' + entries.map(renderChangelogEntry).join('') + '</div>';
+}
+
+function addManualChangelogEntry() {
+  var projId = document.getElementById('log-cl-project-sel') && document.getElementById('log-cl-project-sel').value;
+  if(!projId) { toast('Select a project first'); return; }
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  openModal('+ Add Changelog Note',
+    '<div class="col">' +
+      '<div class="sec-label">Version</div>' +
+      '<input type="text" id="manual-cl-version" value="' + _esc(proj ? proj.version : '') + '">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Note</div>' +
+      '<textarea id="manual-cl-note" placeholder="Describe what changed, what was fixed, or why this version matters…" style="min-height:80px"></textarea>' +
+    '</div>',
+    '<button class="btn teal" onclick="saveManualChangelogEntry(' + projId + ')">Save Note</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function saveManualChangelogEntry(projId) {
+  var version = (document.getElementById('manual-cl-version').value || '').trim();
+  var note = (document.getElementById('manual-cl-note').value || '').trim();
+  if(!note) { toast('Write a note first'); return; }
+  if(!AK.changelog[projId]) AK.changelog[projId] = [];
+  AK.changelog[projId].unshift({
+    id: Date.now() + Math.random(),
+    ts: new Date().toISOString(),
+    version: version,
+    added: [], removed: [], restored: [], modified: [],
+    notes: note,
+    codeDiff: null,
+    isManual: true
+  });
+  AK.save();
+  closeModal();
+  renderChangelogInTab();
+  toast('Changelog note saved');
+}
+
+function exportChangelogMarkdown() {
+  var projId = document.getElementById('log-cl-project-sel') && document.getElementById('log-cl-project-sel').value;
+  if(!projId) { toast('Select a project first'); return; }
+  var proj = AK.projects.find(function(p){ return p.id == projId; });
+  var entries = (AK.changelog[projId] || []).slice();
+  if(!entries.length) { toast('No changelog entries to export'); return; }
+
+  var lines = ['# Changelog — ' + (proj ? proj.name : 'Project'), ''];
+  entries.forEach(function(e) {
+    var d = new Date(e.ts);
+    var dateStr = d.toLocaleDateString([], {year:'numeric',month:'long',day:'numeric'});
+    lines.push('## ' + (e.version || 'Unversioned') + ' — ' + dateStr);
+    if(e.notes) lines.push('', e.notes);
+    var total = (e.added||[]).length + (e.removed||[]).length + (e.restored||[]).length + (e.modified||[]).length;
+    if(total > 0) {
+      if((e.added||[]).length) lines.push('', '**Elements Added (' + e.added.length + '):** ' + e.added.map(function(i){ return i.name||i.key; }).join(', '));
+      if((e.removed||[]).length) lines.push('**Elements Removed (' + e.removed.length + '):** ' + e.removed.map(function(i){ return i.name||i.key; }).join(', '));
+      if((e.restored||[]).length) lines.push('**Elements Restored (' + e.restored.length + '):** ' + e.restored.map(function(i){ return i.name||i.key; }).join(', '));
+      if((e.modified||[]).length) lines.push('**Elements Modified (' + e.modified.length + '):** ' + e.modified.map(function(i){ return i.name||i.key; }).join(', '));
+    }
+    if(e.codeDiff) {
+      var cd = e.codeDiff;
+      var codeTotal = (cd.modified||[]).length + (cd.added||[]).length + (cd.removed||[]).length;
+      if(codeTotal > 0) {
+        var codeParts = [];
+        if(cd.modified && cd.modified.length) codeParts.push('modified: ' + cd.modified.join(', '));
+        if(cd.added && cd.added.length) codeParts.push('added: ' + cd.added.join(', '));
+        if(cd.removed && cd.removed.length) codeParts.push('removed: ' + cd.removed.join(', '));
+        lines.push('**Code Changes (' + codeTotal + '):** ' + codeParts.join(' | '));
+      }
+    }
+    if(total === 0 && !e.notes && !(e.codeDiff && ((e.codeDiff.modified||[]).length + (e.codeDiff.added||[]).length + (e.codeDiff.removed||[]).length) > 0)) {
+      lines.push('No changes recorded.');
+    }
+    lines.push('');
+  });
+
+  copyOrShare(lines.join('\n'), (proj ? proj.name.replace(/\s+/g,'-').toLowerCase() : 'project') + '-changelog.md');
 }
 
 
@@ -4047,159 +4612,8 @@ var REG_TYPE_FILTER = 'all';
 var REG_VIEW = 'screen'; // 'screen' | 'list'
 var REG_OPEN_DRAWER = null;
 
-// ── BowlingDB Pre-seeded Template
-var BOWLINGDB_TEMPLATE = {
-  projectName: 'BowlingDB',
-  screens: [
-    { id: 'global', objects: [
-      { name: 'Back button', type: 'BUTTON', elId: '#hdr-back', fn: 'navBack', note: 'Returns to previous screen' },
-      { name: 'App title (DevKit tap)', type: 'BUTTON', elId: '#hdr-title', fn: 'dkHeaderTap', note: 'Triple-tap activates DevKit' },
-      { name: 'Delete game button', type: 'BUTTON', elId: '#hdr-delete-game-btn', fn: 'confirmDeleteGame', note: 'Header action — only visible during active game' },
-      { name: 'Export/sync button', type: 'BUTTON', elId: '#hdr-sync-btn', fn: 'openExportModal', note: 'Opens import/export modal' },
-      { name: 'Settings button', type: 'BUTTON', elId: '', fn: 'openSettingsModal', note: 'Opens settings modal' }
-    ]},
-    { id: 's-home', objects: [
-      { name: 'Version text (triple-tap)', type: 'BUTTON', elId: '#home-version', fn: 'handleVersionTap', note: 'Displays version; triple-tap activates DevKit' },
-      { name: 'Average stat card', type: 'CARD', elId: '#qs-avg-card', fn: 'goToAvgGames', note: 'Shows 10-week rolling average; taps to game list' },
-      { name: 'High series card', type: 'CARD', elId: '#qs-series-card', fn: 'goToHighSeries', note: 'Shows all-time high series' },
-      { name: 'High game card', type: 'CARD', elId: '#qs-high-card', fn: 'goToHighGameHome', note: 'Shows all-time high game' },
-      { name: 'Nav tile grid', type: 'TILE', elId: '#nav-grid', fn: '', note: 'Drag-to-reorder grid of module tiles' },
-      { name: 'League tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-leagues' },
-      { name: 'Team Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tb-sessions' },
-      { name: 'Open Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-open' },
-      { name: 'Balls tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-balls' },
-      { name: 'Stats tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-stats' },
-      { name: 'NoTap tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-notap' },
-      { name: 'Tournament tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tournaments' },
-      { name: 'Pin color legend (theme)', type: 'BUTTON', elId: '', fn: 'openThemeModal', note: 'Opens theme/pin color customization' },
-      { name: 'Bottom nav — Home', type: 'NAV', elId: '', fn: 'navTo', note: '' },
-      { name: 'Bottom nav — Leagues', type: 'NAV', elId: '', fn: 'navTo', note: '' },
-      { name: 'Bottom nav — Stats', type: 'NAV', elId: '', fn: 'navTo', note: '' },
-      { name: 'Bottom nav — Balls', type: 'NAV', elId: '', fn: 'navTo', note: '' }
-    ]},
-    { id: 's-scoring', objects: [
-      { name: 'Ball chip selector', type: 'CHIP', elId: '#ball-bar-chips', fn: '', note: 'Selects which ball to log for this frame' },
-      { name: 'Previous attempt nav', type: 'NAV', elId: '#nav-prev', fn: 'navPrevAttempt', note: '' },
-      { name: 'Next attempt nav', type: 'NAV', elId: '#nav-next', fn: 'navNextAttempt', note: '' },
-      { name: 'Attempt notes button', type: 'BUTTON', elId: '#notes-icon-btn', fn: 'openAttemptNotesModal', note: 'Logs notes for this specific frame/attempt' },
-      { name: 'Clear attempt button', type: 'BUTTON', elId: '#clear-att-btn', fn: 'clearCurrentAttempt', note: 'Resets current frame input' },
-      { name: 'Pin diagram', type: 'BUTTON', elId: '#pb1…#pb10', fn: 'togglePin', note: '10 individual pin buttons (pb1–pb10)' },
-      { name: 'Board # input (first ball)', type: 'INPUT', elId: '#board-sb', fn: '', note: 'Starting board number input' },
-      { name: 'Board # input (target)', type: 'INPUT', elId: '#board-tb', fn: '', note: 'Target board number input' },
-      { name: 'Numeric mode toggle', type: 'BUTTON', elId: '#num-mode-toggle', fn: 'toggleNumericMode', note: 'Switches between pin diagram and numeric keypad' },
-      { name: 'NoTap mode toggle', type: 'BUTTON', elId: '#notap-toggle', fn: 'toggleNoTap', note: 'Enables NoTap scoring (9 = strike)' },
-      { name: 'Numeric keypad', type: 'INPUT', elId: '#npb1…#npb9', fn: 'tapNumericPin', note: '9-key numeric pad (npb1–npb9)' },
-      { name: 'Strike button', type: 'BUTTON', elId: '#qa-primary', fn: 'quickPrimary', note: 'Quick-action: logs strike' },
-      { name: 'Spare button', type: 'BUTTON', elId: '#qa-spare', fn: 'quickSpare', note: 'Quick-action: logs spare' },
-      { name: 'Miss button', type: 'BUTTON', elId: '#qa-secondary', fn: 'quickSecondary', note: 'Quick-action: logs miss/gutter' },
-      { name: 'Confirm button', type: 'BUTTON', elId: '#btn-confirm', fn: 'confirmAttempt', note: 'Confirms current frame entry and advances' },
-      { name: 'Skip to Summary', type: 'BUTTON', elId: '#btn-jump-summary', fn: 'finishGame', note: 'Ends game early and goes to game complete screen' },
-      { name: 'Undo button', type: 'BUTTON', elId: '', fn: 'doUndo', note: 'Reverts last confirmed frame' },
-      { name: 'Frame 10 third ball', type: 'INPUT', elId: '', fn: '', note: 'Third delivery input — only visible in frame 10' },
-      { name: 'AI advisor button', type: 'BUTTON', elId: '', fn: '', note: 'Opens AI spare/strategy suggestion' }
-    ]},
-    { id: 's-game-complete', objects: [
-      { name: 'Game score hero card', type: 'CARD', elId: '', fn: '', note: 'Large score display at top of summary' },
-      { name: 'Game stats card', type: 'CARD', elId: '#gc-stats', fn: '', note: 'Strike %, spare %, pin stats for this game' },
-      { name: 'Frame detail card', type: 'CARD', elId: '#gc-frame-detail', fn: '', note: 'Frame-by-frame breakdown' },
-      { name: 'Next game button', type: 'BUTTON', elId: '#btn-next-game', fn: 'goNextGame', note: 'Starts the next game in the series' },
-      { name: 'View Series button', type: 'BUTTON', elId: '#btn-end-series', fn: 'endSeries', note: 'Ends series and navigates to series summary' },
-      { name: 'Series debrief (AI)', type: 'BUTTON', elId: '', fn: 'openSeriesDebriefModal', note: 'AI analysis of the completed game/series' }
-    ]},
-    { id: 's-series', objects: [
-      { name: 'New series button', type: 'BUTTON', elId: '', fn: 'openNewSeriesModal', note: 'Opens modal to start a new series' },
-      { name: 'Series card', type: 'CARD', elId: '', fn: 'openSeriesModal', note: 'Tappable card for each recorded series' },
-      { name: 'Handicap recalc button', type: 'BUTTON', elId: '#series-recalc-btn', fn: 'seriesForceRecalc', note: 'Forces recalculation of handicap for all series' }
-    ]},
-    { id: 's-leagues', objects: [
-      { name: 'Add league button', type: 'BUTTON', elId: '', fn: 'openNewLeagueModal', note: 'Opens new league creation modal' },
-      { name: 'League card', type: 'CARD', elId: '', fn: 'openLeagueModal', note: 'Each active league — tap to view sessions' },
-      { name: 'Handicap config link', type: 'BUTTON', elId: '', fn: '', note: 'Opens handicap configuration for this league' },
-      { name: 'Archive league', type: 'BUTTON', elId: '', fn: '', note: 'Archives an inactive league' }
-    ]},
-    { id: 's-tb-sessions', objects: [
-      { name: 'New team session', type: 'BUTTON', elId: '', fn: 'openGroupSetupModal', note: 'Opens setup modal for a new team bowling session' }
-    ]},
-    { id: 's-group', objects: [
-      { name: 'Full scorecard overlay', type: 'CARD', elId: '#grp-full-card', fn: '', note: 'Expandable full team scorecard' },
-      { name: 'Toggle scorecard button', type: 'BUTTON', elId: '', fn: 'toggleGroupScorecard', note: 'Shows/hides the full scorecard overlay' },
-      { name: 'Recalc beer frames', type: 'BUTTON', elId: '', fn: 'grpRecalcAllBeerFrames', note: 'Recalculates beer frame tallies for all bowlers' },
-      { name: 'Loserboard', type: 'CARD', elId: '', fn: '', note: 'Running game loser tally for the session' },
-      { name: 'Transfer to league', type: 'BUTTON', elId: '', fn: '', note: 'Transfers team session scores to a league record' }
-    ]},
-    { id: 's-balls', objects: [
-      { name: 'Add ball button', type: 'BUTTON', elId: '', fn: 'navToBall', note: 'Opens ball creation / detail flow' },
-      { name: 'Ball card', type: 'CARD', elId: '', fn: 'openBallModal', note: 'Each ball in the bag — tap for details' },
-      { name: 'Ball filter chips', type: 'CHIP', elId: '', fn: '', note: 'Filter balls by weight, type, or surface' }
-    ]},
-    { id: 's-ball-detail', objects: [
-      { name: 'Ball image', type: 'CARD', elId: '', fn: '', note: 'Ball photo / visual display' },
-      { name: 'Add surface prep', type: 'BUTTON', elId: '', fn: 'openLogSurfacePrepModal', note: 'Logs a surface preparation session' },
-      { name: 'Fetch ball info (AI)', type: 'BUTTON', elId: '', fn: '', note: 'AI lookup for ball specs and cover stock info' },
-      { name: 'Edit ball button', type: 'BUTTON', elId: '', fn: 'openEditBallModal', note: 'Edits ball name, weight, and specs' }
-    ]},
-    { id: 's-stats', objects: [
-      { name: 'Average stat card', type: 'CARD', elId: '', fn: '', note: 'Rolling average trend over time' },
-      { name: 'High game card', type: 'CARD', elId: '', fn: '', note: 'All-time and recent high game' },
-      { name: 'All Games list', type: 'CARD', elId: '', fn: '', note: 'Scrollable list of all recorded games' },
-      { name: 'Leave/split chart', type: 'CARD', elId: '', fn: 'openSpareDetailModal', note: 'Spare conversion rates by leave type' }
-    ]},
-    { id: 's-open', objects: [
-      { name: 'New open session', type: 'BUTTON', elId: '', fn: 'openNewOpenSessionModal', note: 'Starts a new casual open bowling session' },
-      { name: 'Open bowl scoring', type: 'INPUT', elId: '', fn: '', note: 'Score input for open session' },
-      { name: 'Save open session', type: 'BUTTON', elId: '', fn: '', note: 'Saves the completed open session' }
-    ]},
-    { id: 's-notap', objects: [
-      { name: 'New NoTap series', type: 'BUTTON', elId: '', fn: 'openNoTapSeriesModal', note: 'Starts a series with NoTap scoring rules' }
-    ]},
-    { id: 's-tournaments', objects: [
-      { name: 'New tournament', type: 'BUTTON', elId: '', fn: 'openNewTournamentModal', note: 'Creates a new tournament' },
-      { name: 'Tournament card', type: 'CARD', elId: '', fn: 'openTournamentModal', note: 'Each tournament entry' }
-    ]},
-    { id: 's-tournament-series', objects: [
-      { name: 'New tournament series', type: 'BUTTON', elId: '', fn: 'openNewTournamentSeriesModal', note: 'Adds a series within the current tournament' }
-    ]},
-    { id: 'Modals', objects: [
-      { name: 'Import / Export modal', type: 'MODAL', elId: '', fn: 'openExportModal', note: 'Full import/export with cloud backup options' },
-      { name: 'Settings modal', type: 'MODAL', elId: '', fn: 'openSettingsModal', note: 'App settings — bowler, center, preferences' },
-      { name: 'New series modal', type: 'MODAL', elId: '', fn: 'openNewSeriesModal', note: 'Configure and start a new series' },
-      { name: 'New league modal', type: 'MODAL', elId: '', fn: 'openNewLeagueModal', note: 'Create a new league with handicap settings' },
-      { name: 'Edit league modal', type: 'MODAL', elId: '', fn: 'openEditLeagueModal', note: 'Edit league name, night, and settings' },
-      { name: 'League stats modal', type: 'MODAL', elId: '', fn: 'openLeagueStatsModal', note: 'Season averages and trends for this league' },
-      { name: 'Add ball modal', type: 'MODAL', elId: '', fn: 'openAddBallModal', note: 'Add a new ball to the bag' },
-      { name: 'Edit ball modal', type: 'MODAL', elId: '', fn: 'openEditBallModal', note: 'Modify ball specs and surface details' },
-      { name: 'Ball detail modal', type: 'MODAL', elId: '', fn: 'openBallDetailModal', note: 'Full ball info with surface prep history' },
-      { name: 'Log surface prep modal', type: 'MODAL', elId: '', fn: 'openLogSurfacePrepModal', note: 'Log a resurfacing or cleaning session for a ball' },
-      { name: 'Attempt notes modal', type: 'MODAL', elId: '', fn: 'openAttemptNotesModal', note: 'Per-frame notes during scoring' },
-      { name: 'Series debrief modal (AI)', type: 'MODAL', elId: '', fn: 'openSeriesDebriefModal', note: 'AI-generated series analysis and coaching notes' },
-      { name: 'Game stats modal', type: 'MODAL', elId: '', fn: 'openGameStatsModal', note: 'Stats overlay for a specific game' },
-      { name: 'Edit game modal', type: 'MODAL', elId: '', fn: 'openEditGameModal', note: 'Manually edit a recorded game score' },
-      { name: 'Handicap config modal', type: 'MODAL', elId: '', fn: '', note: 'Set base score and percentage for handicap calc' },
-      { name: 'Group setup modal', type: 'MODAL', elId: '', fn: 'openGroupSetupModal', note: 'Configure team bowling session — bowlers, lanes' },
-      { name: 'Beer frame modal', type: 'MODAL', elId: '', fn: 'openBeerFrameModal', note: 'Track beer frame tally for team session' },
-      { name: 'Roster modal', type: 'MODAL', elId: '', fn: 'openRosterModal', note: 'Manage bowler roster for a league or session' },
-      { name: 'Add bowler modal', type: 'MODAL', elId: '', fn: 'openAddBowlerModal', note: 'Add a new bowler to the roster' },
-      { name: 'Spare detail modal', type: 'MODAL', elId: '', fn: 'openSpareDetailModal', note: 'Breakdown of spare conversions by pin leave' },
-      { name: 'Strike streaks modal', type: 'MODAL', elId: '', fn: 'openStrikeStreaksModal', note: 'Longest strike streaks across all games' },
-      { name: 'All-time highs modal', type: 'MODAL', elId: '', fn: 'openAllTimeHighsModal', note: 'Personal bests across all categories' },
-      { name: 'Highs by venue modal', type: 'MODAL', elId: '', fn: 'openHighsByVenueModal', note: 'Personal bests filtered by bowling center' },
-      { name: 'Open session stats modal', type: 'MODAL', elId: '', fn: 'openOpenSessionStatsModal', note: 'Stats for a completed open bowling session' },
-      { name: 'Series stats modal', type: 'MODAL', elId: '', fn: 'openSeriesStatsModal', note: 'Detailed stats for a specific series' },
-      { name: 'Tournament modal', type: 'MODAL', elId: '', fn: 'openTournamentModal', note: 'Tournament details and series list' },
-      { name: 'Theme / pin colors modal', type: 'MODAL', elId: '', fn: 'openThemeModal', note: 'Customize pin standing/knocked colors' },
-      { name: 'Import strategy modal', type: 'MODAL', elId: '', fn: 'openImportStrategyModal', note: 'Choose merge or replace on data import' },
-      { name: 'Add center modal', type: 'MODAL', elId: '', fn: 'openAddCenterModal', note: 'Add a bowling center / venue' },
-      { name: 'Add pattern modal', type: 'MODAL', elId: '', fn: 'openAddPatternModal', note: 'Add an oil pattern for lane tracking' },
-      { name: 'Edit series modal', type: 'MODAL', elId: '', fn: 'openEditSeriesModal', note: 'Edit series metadata and league assignment' },
-      { name: 'Edit open session modal', type: 'MODAL', elId: '', fn: 'openEditOpenSessionModal', note: 'Edit casual session details' },
-      { name: 'Edit tournament modal', type: 'MODAL', elId: '', fn: 'openEditTournamentModal', note: 'Edit tournament name and settings' },
-      { name: 'Roster link modal', type: 'MODAL', elId: '', fn: 'openRosterLinkModal', note: 'Link an existing bowler to a league roster' },
-      { name: 'Dev data modal', type: 'MODAL', elId: '', fn: 'openDevModal', note: 'Developer debug modal — IDB tables dump' },
-      { name: 'Modal background dismiss', type: 'MODAL', elId: '#modal-bg', fn: 'handleModalBgClick', note: 'Tapping outside modal closes it' },
-      { name: 'Toast notification', type: 'MODAL', elId: '#toast', fn: 'toastDismiss', note: 'Temporary status message — tap to dismiss' }
-    ]}
-  ]
-};
+// ── BowlingDB template removed — now lives in AK.pwaLibrary.projectTemplates
+// Use getBowlingDBTemplate() which reads from the library
 
 // ── Registry seed from template
 function seedFromTemplate(tmpl, projId) {
@@ -4591,11 +5005,12 @@ function saveAddObject() {
 function showBowlingDBSeedOption() {
   var projId = document.getElementById('reg-project-sel').value || AK.activeProject;
   var proj = AK.projects.find(function(p){ return p.id == projId; });
+  var tmpl = getBowlingDBTemplate();
   openModal('Load BowlingDB Template',
     '<div style="font-size:12px;color:var(--t2);line-height:1.7">' +
       'This will pre-seed the Element Map with <strong>' +
-      BOWLINGDB_TEMPLATE.screens.reduce(function(n,s){return n+s.objects.length;},0) +
-      ' named objects</strong> across ' + BOWLINGDB_TEMPLATE.screens.length + ' screens — ' +
+      tmpl.screens.reduce(function(n,s){return n+s.objects.length;},0) +
+      ' named objects</strong> across ' + tmpl.screens.length + ' screens — ' +
       'all set to <strong style="color:var(--green)">Working</strong> status.<br><br>' +
       'Existing entries for this project are kept; only new entries are added.' +
     '</div>' +
@@ -4616,7 +5031,7 @@ function showBowlingDBSeedOption() {
 function applySeed() {
   var projId = parseInt(document.getElementById('seed-proj-sel').value);
   if(!projId) { toast('Select a project first'); return; }
-  var count = seedFromTemplate(BOWLINGDB_TEMPLATE, projId);
+  var count = seedFromTemplate(getBowlingDBTemplate(), projId);
   closeModal();
   renderRegistryScreens();
   toast('Loaded ' + count + ' objects from BowlingDB template');
@@ -4819,6 +5234,8 @@ function settingsInit() {
   if(keyEl) keyEl.value = key;
   if(modelEl) modelEl.value = model;
   settingsUpdateStatus();
+  pwaLibraryInit();
+  populateTemplateSelect();
 }
 
 function settingsSaveApiKey(val) {
@@ -4856,6 +5273,485 @@ function getActiveModel() {
 }
 
 // ════════════════════════════════════════════════════════════════
+//  PWA OBJECT LIBRARY
+// ════════════════════════════════════════════════════════════════
+function getDefaultPwaLibrary() {
+  return {
+    elementTypes: {
+      BUTTON: { icon:'⬡', label:'Button',   desc:'Tappable action button', isBuiltin:true },
+      INPUT:  { icon:'✏', label:'Input',    desc:'Text field, dropdown, or form control', isBuiltin:true },
+      CARD:   { icon:'▤',  label:'Card',     desc:'Content display panel', isBuiltin:true },
+      MODAL:  { icon:'◫',  label:'Modal',    desc:'Overlay dialog or bottom sheet', isBuiltin:true },
+      NAV:    { icon:'↔',  label:'Nav',      desc:'Navigation link or route control', isBuiltin:true },
+      CHIP:   { icon:'⬭',  label:'Chip',     desc:'Filter chip or selector', isBuiltin:true },
+      TILE:   { icon:'⊞',  label:'Tile',     desc:'Home tile or grid item', isBuiltin:true },
+      LIST:   { icon:'☰',  label:'List',     desc:'Scrollable item list', isBuiltin:false },
+      HEADER: { icon:'▀',  label:'Header',   desc:'Screen or section header bar', isBuiltin:false },
+      FOOTER: { icon:'▄',  label:'Footer',   desc:'Bottom bar or persistent footer', isBuiltin:false },
+      BADGE:  { icon:'◉',  label:'Badge',    desc:'Status indicator or count', isBuiltin:false },
+      TOGGLE: { icon:'⊙',  label:'Toggle',   desc:'On/off switch or checkbox', isBuiltin:false },
+      FORM:   { icon:'□',  label:'Form',     desc:'Form container', isBuiltin:false },
+      TABLE:  { icon:'⊟',  label:'Table',    desc:'Data table or grid', isBuiltin:false },
+      OTHER:  { icon:'◻',  label:'Other',    desc:'Miscellaneous element', isBuiltin:true }
+    },
+    screenArchetypes: [
+      { id:'arch-home',       icon:'🏠', name:'Home / Dashboard',    desc:'Main entry — quick stats, nav tiles' },
+      { id:'arch-list',       icon:'☰',  name:'List',                desc:'Scrollable list of records' },
+      { id:'arch-detail',     icon:'📄', name:'Detail',              desc:'Single-item detail view' },
+      { id:'arch-form',       icon:'✏', name:'Form / Entry',        desc:'Create or edit a record' },
+      { id:'arch-settings',   icon:'⚙', name:'Settings',            desc:'App-wide configuration' },
+      { id:'arch-onboarding', icon:'👋', name:'Onboarding',          desc:'First-launch or setup flow' },
+      { id:'arch-auth',       icon:'🔑', name:'Auth / Login',        desc:'Authentication screen' },
+      { id:'arch-empty',      icon:'◻', name:'Empty State',         desc:'Zero-content placeholder screen' },
+      { id:'arch-error',      icon:'⚠', name:'Error / Offline',     desc:'Error or no-connectivity state' },
+      { id:'arch-search',     icon:'🔍', name:'Search',              desc:'Search results or filter view' },
+      { id:'arch-stats',      icon:'📊', name:'Statistics',          desc:'Charts and performance data' },
+      { id:'arch-shell',      icon:'🌐', name:'App Shell / Global',  desc:'Persistent chrome: header, nav, toasts, modals' }
+    ],
+    commonPatterns: [
+      { id:'pat-bottom-nav',       name:'Bottom Navigation',      desc:'Fixed bottom tab bar with icons' },
+      { id:'pat-fab',              name:'Floating Action Button',  desc:'Primary action floating bottom-right' },
+      { id:'pat-toast',            name:'Toast Notification',      desc:'Temporary status message overlay' },
+      { id:'pat-pull-refresh',     name:'Pull to Refresh',         desc:'Drag-down to reload list content' },
+      { id:'pat-infinite-scroll',  name:'Infinite Scroll',         desc:'Load more items as user scrolls' },
+      { id:'pat-swipe-delete',     name:'Swipe to Delete',         desc:'Horizontal swipe reveals delete action' },
+      { id:'pat-modal-dismiss',    name:'Modal Backdrop Dismiss',  desc:'Tap outside modal closes it' },
+      { id:'pat-skeleton',         name:'Skeleton Loader',         desc:'Placeholder shown while content loads' },
+      { id:'pat-sticky-header',    name:'Sticky Header',           desc:'Header stays pinned on scroll' },
+      { id:'pat-search-filter',    name:'Search + Filter',         desc:'Combined search input with filter chips' }
+    ],
+    projectTemplates: [
+      {
+        id: 'tmpl-bowlingdb',
+        name: 'BowlingDB',
+        icon: '🎳',
+        desc: 'Full bowling statistics PWA — 20 screens, ~116 tracked elements',
+        screens: [
+    { id: 'global', objects: [
+      { name: 'Back button', type: 'BUTTON', elId: '#hdr-back', fn: 'navBack', note: 'Returns to previous screen' },
+      { name: 'App title (DevKit tap)', type: 'BUTTON', elId: '#hdr-title', fn: 'dkHeaderTap', note: 'Triple-tap activates DevKit' },
+      { name: 'Delete game button', type: 'BUTTON', elId: '#hdr-delete-game-btn', fn: 'confirmDeleteGame', note: 'Header action — only visible during active game' },
+      { name: 'Export/sync button', type: 'BUTTON', elId: '#hdr-sync-btn', fn: 'openExportModal', note: 'Opens import/export modal' },
+      { name: 'Settings button', type: 'BUTTON', elId: '', fn: 'openSettingsModal', note: 'Opens settings modal' }
+    ]},
+    { id: 's-home', objects: [
+      { name: 'Version text (triple-tap)', type: 'BUTTON', elId: '#home-version', fn: 'handleVersionTap', note: 'Displays version; triple-tap activates DevKit' },
+      { name: 'Average stat card', type: 'CARD', elId: '#qs-avg-card', fn: 'goToAvgGames', note: 'Shows 10-week rolling average; taps to game list' },
+      { name: 'High series card', type: 'CARD', elId: '#qs-series-card', fn: 'goToHighSeries', note: 'Shows all-time high series' },
+      { name: 'High game card', type: 'CARD', elId: '#qs-high-card', fn: 'goToHighGameHome', note: 'Shows all-time high game' },
+      { name: 'Nav tile grid', type: 'TILE', elId: '#nav-grid', fn: '', note: 'Drag-to-reorder grid of module tiles' },
+      { name: 'League tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-leagues' },
+      { name: 'Team Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tb-sessions' },
+      { name: 'Open Bowl tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-open' },
+      { name: 'Balls tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-balls' },
+      { name: 'Stats tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-stats' },
+      { name: 'NoTap tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-notap' },
+      { name: 'Tournament tile', type: 'TILE', elId: '', fn: 'navTo', note: 'Navigates to s-tournaments' },
+      { name: 'Pin color legend (theme)', type: 'BUTTON', elId: '', fn: 'openThemeModal', note: 'Opens theme/pin color customization' },
+      { name: 'Bottom nav — Home', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Leagues', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Stats', type: 'NAV', elId: '', fn: 'navTo', note: '' },
+      { name: 'Bottom nav — Balls', type: 'NAV', elId: '', fn: 'navTo', note: '' }
+    ]},
+    { id: 's-scoring', objects: [
+      { name: 'Ball chip selector', type: 'CHIP', elId: '#ball-bar-chips', fn: '', note: 'Selects which ball to log for this frame' },
+      { name: 'Previous attempt nav', type: 'NAV', elId: '#nav-prev', fn: 'navPrevAttempt', note: '' },
+      { name: 'Next attempt nav', type: 'NAV', elId: '#nav-next', fn: 'navNextAttempt', note: '' },
+      { name: 'Attempt notes button', type: 'BUTTON', elId: '#notes-icon-btn', fn: 'openAttemptNotesModal', note: 'Logs notes for this specific frame/attempt' },
+      { name: 'Clear attempt button', type: 'BUTTON', elId: '#clear-att-btn', fn: 'clearCurrentAttempt', note: 'Resets current frame input' },
+      { name: 'Pin diagram', type: 'BUTTON', elId: '#pb1…#pb10', fn: 'togglePin', note: '10 individual pin buttons (pb1–pb10)' },
+      { name: 'Board # input (first ball)', type: 'INPUT', elId: '#board-sb', fn: '', note: 'Starting board number input' },
+      { name: 'Board # input (target)', type: 'INPUT', elId: '#board-tb', fn: '', note: 'Target board number input' },
+      { name: 'Numeric mode toggle', type: 'BUTTON', elId: '#num-mode-toggle', fn: 'toggleNumericMode', note: 'Switches between pin diagram and numeric keypad' },
+      { name: 'NoTap mode toggle', type: 'BUTTON', elId: '#notap-toggle', fn: 'toggleNoTap', note: 'Enables NoTap scoring (9 = strike)' },
+      { name: 'Numeric keypad', type: 'INPUT', elId: '#npb1…#npb9', fn: 'tapNumericPin', note: '9-key numeric pad (npb1–npb9)' },
+      { name: 'Strike button', type: 'BUTTON', elId: '#qa-primary', fn: 'quickPrimary', note: 'Quick-action: logs strike' },
+      { name: 'Spare button', type: 'BUTTON', elId: '#qa-spare', fn: 'quickSpare', note: 'Quick-action: logs spare' },
+      { name: 'Miss button', type: 'BUTTON', elId: '#qa-secondary', fn: 'quickSecondary', note: 'Quick-action: logs miss/gutter' },
+      { name: 'Confirm button', type: 'BUTTON', elId: '#btn-confirm', fn: 'confirmAttempt', note: 'Confirms current frame entry and advances' },
+      { name: 'Skip to Summary', type: 'BUTTON', elId: '#btn-jump-summary', fn: 'finishGame', note: 'Ends game early and goes to game complete screen' },
+      { name: 'Undo button', type: 'BUTTON', elId: '', fn: 'doUndo', note: 'Reverts last confirmed frame' },
+      { name: 'Frame 10 third ball', type: 'INPUT', elId: '', fn: '', note: 'Third delivery input — only visible in frame 10' },
+      { name: 'AI advisor button', type: 'BUTTON', elId: '', fn: '', note: 'Opens AI spare/strategy suggestion' }
+    ]},
+    { id: 's-game-complete', objects: [
+      { name: 'Game score hero card', type: 'CARD', elId: '', fn: '', note: 'Large score display at top of summary' },
+      { name: 'Game stats card', type: 'CARD', elId: '#gc-stats', fn: '', note: 'Strike %, spare %, pin stats for this game' },
+      { name: 'Frame detail card', type: 'CARD', elId: '#gc-frame-detail', fn: '', note: 'Frame-by-frame breakdown' },
+      { name: 'Next game button', type: 'BUTTON', elId: '#btn-next-game', fn: 'goNextGame', note: 'Starts the next game in the series' },
+      { name: 'View Series button', type: 'BUTTON', elId: '#btn-end-series', fn: 'endSeries', note: 'Ends series and navigates to series summary' },
+      { name: 'Series debrief (AI)', type: 'BUTTON', elId: '', fn: 'openSeriesDebriefModal', note: 'AI analysis of the completed game/series' }
+    ]},
+    { id: 's-series', objects: [
+      { name: 'New series button', type: 'BUTTON', elId: '', fn: 'openNewSeriesModal', note: 'Opens modal to start a new series' },
+      { name: 'Series card', type: 'CARD', elId: '', fn: 'openSeriesModal', note: 'Tappable card for each recorded series' },
+      { name: 'Handicap recalc button', type: 'BUTTON', elId: '#series-recalc-btn', fn: 'seriesForceRecalc', note: 'Forces recalculation of handicap for all series' }
+    ]},
+    { id: 's-leagues', objects: [
+      { name: 'Add league button', type: 'BUTTON', elId: '', fn: 'openNewLeagueModal', note: 'Opens new league creation modal' },
+      { name: 'League card', type: 'CARD', elId: '', fn: 'openLeagueModal', note: 'Each active league — tap to view sessions' },
+      { name: 'Handicap config link', type: 'BUTTON', elId: '', fn: '', note: 'Opens handicap configuration for this league' },
+      { name: 'Archive league', type: 'BUTTON', elId: '', fn: '', note: 'Archives an inactive league' }
+    ]},
+    { id: 's-tb-sessions', objects: [
+      { name: 'New team session', type: 'BUTTON', elId: '', fn: 'openGroupSetupModal', note: 'Opens setup modal for a new team bowling session' }
+    ]},
+    { id: 's-group', objects: [
+      { name: 'Full scorecard overlay', type: 'CARD', elId: '#grp-full-card', fn: '', note: 'Expandable full team scorecard' },
+      { name: 'Toggle scorecard button', type: 'BUTTON', elId: '', fn: 'toggleGroupScorecard', note: 'Shows/hides the full scorecard overlay' },
+      { name: 'Recalc beer frames', type: 'BUTTON', elId: '', fn: 'grpRecalcAllBeerFrames', note: 'Recalculates beer frame tallies for all bowlers' },
+      { name: 'Loserboard', type: 'CARD', elId: '', fn: '', note: 'Running game loser tally for the session' },
+      { name: 'Transfer to league', type: 'BUTTON', elId: '', fn: '', note: 'Transfers team session scores to a league record' }
+    ]},
+    { id: 's-balls', objects: [
+      { name: 'Add ball button', type: 'BUTTON', elId: '', fn: 'navToBall', note: 'Opens ball creation / detail flow' },
+      { name: 'Ball card', type: 'CARD', elId: '', fn: 'openBallModal', note: 'Each ball in the bag — tap for details' },
+      { name: 'Ball filter chips', type: 'CHIP', elId: '', fn: '', note: 'Filter balls by weight, type, or surface' }
+    ]},
+    { id: 's-ball-detail', objects: [
+      { name: 'Ball image', type: 'CARD', elId: '', fn: '', note: 'Ball photo / visual display' },
+      { name: 'Add surface prep', type: 'BUTTON', elId: '', fn: 'openLogSurfacePrepModal', note: 'Logs a surface preparation session' },
+      { name: 'Fetch ball info (AI)', type: 'BUTTON', elId: '', fn: '', note: 'AI lookup for ball specs and cover stock info' },
+      { name: 'Edit ball button', type: 'BUTTON', elId: '', fn: 'openEditBallModal', note: 'Edits ball name, weight, and specs' }
+    ]},
+    { id: 's-stats', objects: [
+      { name: 'Average stat card', type: 'CARD', elId: '', fn: '', note: 'Rolling average trend over time' },
+      { name: 'High game card', type: 'CARD', elId: '', fn: '', note: 'All-time and recent high game' },
+      { name: 'All Games list', type: 'CARD', elId: '', fn: '', note: 'Scrollable list of all recorded games' },
+      { name: 'Leave/split chart', type: 'CARD', elId: '', fn: 'openSpareDetailModal', note: 'Spare conversion rates by leave type' }
+    ]},
+    { id: 's-open', objects: [
+      { name: 'New open session', type: 'BUTTON', elId: '', fn: 'openNewOpenSessionModal', note: 'Starts a new casual open bowling session' },
+      { name: 'Open bowl scoring', type: 'INPUT', elId: '', fn: '', note: 'Score input for open session' },
+      { name: 'Save open session', type: 'BUTTON', elId: '', fn: '', note: 'Saves the completed open session' }
+    ]},
+    { id: 's-notap', objects: [
+      { name: 'New NoTap series', type: 'BUTTON', elId: '', fn: 'openNoTapSeriesModal', note: 'Starts a series with NoTap scoring rules' }
+    ]},
+    { id: 's-tournaments', objects: [
+      { name: 'New tournament', type: 'BUTTON', elId: '', fn: 'openNewTournamentModal', note: 'Creates a new tournament' },
+      { name: 'Tournament card', type: 'CARD', elId: '', fn: 'openTournamentModal', note: 'Each tournament entry' }
+    ]},
+    { id: 's-tournament-series', objects: [
+      { name: 'New tournament series', type: 'BUTTON', elId: '', fn: 'openNewTournamentSeriesModal', note: 'Adds a series within the current tournament' }
+    ]},
+    { id: 'Modals', objects: [
+      { name: 'Import / Export modal', type: 'MODAL', elId: '', fn: 'openExportModal', note: 'Full import/export with cloud backup options' },
+      { name: 'Settings modal', type: 'MODAL', elId: '', fn: 'openSettingsModal', note: 'App settings — bowler, center, preferences' },
+      { name: 'New series modal', type: 'MODAL', elId: '', fn: 'openNewSeriesModal', note: 'Configure and start a new series' },
+      { name: 'New league modal', type: 'MODAL', elId: '', fn: 'openNewLeagueModal', note: 'Create a new league with handicap settings' },
+      { name: 'Edit league modal', type: 'MODAL', elId: '', fn: 'openEditLeagueModal', note: 'Edit league name, night, and settings' },
+      { name: 'League stats modal', type: 'MODAL', elId: '', fn: 'openLeagueStatsModal', note: 'Season averages and trends for this league' },
+      { name: 'Add ball modal', type: 'MODAL', elId: '', fn: 'openAddBallModal', note: 'Add a new ball to the bag' },
+      { name: 'Edit ball modal', type: 'MODAL', elId: '', fn: 'openEditBallModal', note: 'Modify ball specs and surface details' },
+      { name: 'Ball detail modal', type: 'MODAL', elId: '', fn: 'openBallDetailModal', note: 'Full ball info with surface prep history' },
+      { name: 'Log surface prep modal', type: 'MODAL', elId: '', fn: 'openLogSurfacePrepModal', note: 'Log a resurfacing or cleaning session for a ball' },
+      { name: 'Attempt notes modal', type: 'MODAL', elId: '', fn: 'openAttemptNotesModal', note: 'Per-frame notes during scoring' },
+      { name: 'Series debrief modal (AI)', type: 'MODAL', elId: '', fn: 'openSeriesDebriefModal', note: 'AI-generated series analysis and coaching notes' },
+      { name: 'Game stats modal', type: 'MODAL', elId: '', fn: 'openGameStatsModal', note: 'Stats overlay for a specific game' },
+      { name: 'Edit game modal', type: 'MODAL', elId: '', fn: 'openEditGameModal', note: 'Manually edit a recorded game score' },
+      { name: 'Handicap config modal', type: 'MODAL', elId: '', fn: '', note: 'Set base score and percentage for handicap calc' },
+      { name: 'Group setup modal', type: 'MODAL', elId: '', fn: 'openGroupSetupModal', note: 'Configure team bowling session — bowlers, lanes' },
+      { name: 'Beer frame modal', type: 'MODAL', elId: '', fn: 'openBeerFrameModal', note: 'Track beer frame tally for team session' },
+      { name: 'Roster modal', type: 'MODAL', elId: '', fn: 'openRosterModal', note: 'Manage bowler roster for a league or session' },
+      { name: 'Add bowler modal', type: 'MODAL', elId: '', fn: 'openAddBowlerModal', note: 'Add a new bowler to the roster' },
+      { name: 'Spare detail modal', type: 'MODAL', elId: '', fn: 'openSpareDetailModal', note: 'Breakdown of spare conversions by pin leave' },
+      { name: 'Strike streaks modal', type: 'MODAL', elId: '', fn: 'openStrikeStreaksModal', note: 'Longest strike streaks across all games' },
+      { name: 'All-time highs modal', type: 'MODAL', elId: '', fn: 'openAllTimeHighsModal', note: 'Personal bests across all categories' },
+      { name: 'Highs by venue modal', type: 'MODAL', elId: '', fn: 'openHighsByVenueModal', note: 'Personal bests filtered by bowling center' },
+      { name: 'Open session stats modal', type: 'MODAL', elId: '', fn: 'openOpenSessionStatsModal', note: 'Stats for a completed open bowling session' },
+      { name: 'Series stats modal', type: 'MODAL', elId: '', fn: 'openSeriesStatsModal', note: 'Detailed stats for a specific series' },
+      { name: 'Tournament modal', type: 'MODAL', elId: '', fn: 'openTournamentModal', note: 'Tournament details and series list' },
+      { name: 'Theme / pin colors modal', type: 'MODAL', elId: '', fn: 'openThemeModal', note: 'Customize pin standing/knocked colors' },
+      { name: 'Import strategy modal', type: 'MODAL', elId: '', fn: 'openImportStrategyModal', note: 'Choose merge or replace on data import' },
+      { name: 'Add center modal', type: 'MODAL', elId: '', fn: 'openAddCenterModal', note: 'Add a bowling center / venue' },
+      { name: 'Add pattern modal', type: 'MODAL', elId: '', fn: 'openAddPatternModal', note: 'Add an oil pattern for lane tracking' },
+      { name: 'Edit series modal', type: 'MODAL', elId: '', fn: 'openEditSeriesModal', note: 'Edit series metadata and league assignment' },
+      { name: 'Edit open session modal', type: 'MODAL', elId: '', fn: 'openEditOpenSessionModal', note: 'Edit casual session details' },
+      { name: 'Edit tournament modal', type: 'MODAL', elId: '', fn: 'openEditTournamentModal', note: 'Edit tournament name and settings' },
+      { name: 'Roster link modal', type: 'MODAL', elId: '', fn: 'openRosterLinkModal', note: 'Link an existing bowler to a league roster' },
+      { name: 'Dev data modal', type: 'MODAL', elId: '', fn: 'openDevModal', note: 'Developer debug modal — IDB tables dump' },
+      { name: 'Modal background dismiss', type: 'MODAL', elId: '#modal-bg', fn: 'handleModalBgClick', note: 'Tapping outside modal closes it' },
+      { name: 'Toast notification', type: 'MODAL', elId: '#toast', fn: 'toastDismiss', note: 'Temporary status message — tap to dismiss' }
+    ]}
+  ]
+      }
+    ],
+    customTypes: []
+  };
+}
+
+function mergePwaLibrary(saved) {
+  var defaults = getDefaultPwaLibrary();
+  var result = {
+    elementTypes: Object.assign({}, defaults.elementTypes),
+    screenArchetypes: defaults.screenArchetypes.slice(),
+    commonPatterns: defaults.commonPatterns.slice(),
+    projectTemplates: defaults.projectTemplates.slice(),
+    customTypes: saved.customTypes || []
+  };
+  if(saved.elementTypes) {
+    Object.keys(saved.elementTypes).forEach(function(k) {
+      if(!defaults.elementTypes[k]) {
+        result.elementTypes[k] = saved.elementTypes[k];
+      }
+    });
+  }
+  if(saved.screenArchetypes) {
+    saved.screenArchetypes.forEach(function(a) {
+      if(!result.screenArchetypes.find(function(x){ return x.id === a.id; })) {
+        result.screenArchetypes.push(a);
+      }
+    });
+  }
+  if(saved.commonPatterns) {
+    saved.commonPatterns.forEach(function(p) {
+      if(!result.commonPatterns.find(function(x){ return x.id === p.id; })) {
+        result.commonPatterns.push(p);
+      }
+    });
+  }
+  if(saved.projectTemplates) {
+    saved.projectTemplates.forEach(function(t) {
+      if(!result.projectTemplates.find(function(x){ return x.id === t.id; })) {
+        result.projectTemplates.push(t);
+      }
+    });
+  }
+  return result;
+}
+
+function syncLibraryGlobals() {
+  if(!AK.pwaLibrary) return;
+  TYPE_META = {};
+  Object.keys(AK.pwaLibrary.elementTypes).forEach(function(k) {
+    TYPE_META[k] = AK.pwaLibrary.elementTypes[k];
+  });
+  (AK.pwaLibrary.customTypes || []).forEach(function(t) {
+    if(t.key) TYPE_META[t.key] = { icon: t.icon || '◻', label: t.label, desc: t.desc || '' };
+  });
+  AK.pwaLibrary.screenArchetypes.forEach(function(a) {
+    SCREEN_META[a.id] = { icon: a.icon, name: a.name, desc: a.desc };
+  });
+}
+
+// ── Legacy shim — reads from pwaLibrary so old call sites keep working
+function getBowlingDBTemplate() {
+  var tmpl = (AK.pwaLibrary.projectTemplates || []).find(function(t){ return t.id === 'tmpl-bowlingdb'; });
+  return tmpl || { screens: [] };
+}
+
+// ── Library render functions
+function pwaLibraryInit() {
+  renderLibTypes();
+  renderLibArchetypes();
+  renderLibPatterns();
+  renderLibTemplates();
+}
+
+function renderLibTypes() {
+  var el = document.getElementById('lib-types-list');
+  if(!el) return;
+  var lib = AK.pwaLibrary;
+  el.innerHTML = Object.keys(lib.elementTypes).map(function(k) {
+    var t = lib.elementTypes[k];
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border1)">' +
+      '<span style="font-size:16px;width:22px;text-align:center">' + t.icon + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(t.label) + '</div>' +
+        '<div style="font-size:10px;color:var(--t3)">' + _esc(t.desc) + '</div>' +
+      '</div>' +
+      (t.isBuiltin
+        ? '<span style="font-size:9px;color:var(--t3)">built-in</span>'
+        : '<button class="btn sm red" onclick="pwaDeleteType(\'' + _esc(k) + '\')">✕</button>'
+      ) +
+    '</div>';
+  }).join('');
+}
+
+function renderLibArchetypes() {
+  var el = document.getElementById('lib-archetypes-list');
+  if(!el) return;
+  el.innerHTML = AK.pwaLibrary.screenArchetypes.map(function(a, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border1)">' +
+      '<span style="font-size:16px;width:22px;text-align:center">' + a.icon + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(a.name) + '</div>' +
+        '<div style="font-size:10px;color:var(--t3)">' + _esc(a.desc) + '</div>' +
+      '</div>' +
+      '<button class="btn sm red" onclick="pwaDeleteArchetype(' + i + ')">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function renderLibPatterns() {
+  var el = document.getElementById('lib-patterns-list');
+  if(!el) return;
+  el.innerHTML = AK.pwaLibrary.commonPatterns.map(function(p, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border1)">' +
+      '<div style="flex:1">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(p.name) + '</div>' +
+        '<div style="font-size:10px;color:var(--t3)">' + _esc(p.desc) + '</div>' +
+      '</div>' +
+      '<button class="btn sm red" onclick="pwaDeletePattern(' + i + ')">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function renderLibTemplates() {
+  var el = document.getElementById('lib-templates-list');
+  if(!el) return;
+  el.innerHTML = AK.pwaLibrary.projectTemplates.map(function(t) {
+    var count = (t.screens || []).reduce(function(n, s){ return n + (s.objects||[]).length; }, 0);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border1)">' +
+      '<span style="font-size:18px;width:24px;text-align:center">' + (t.icon||'📦') + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(t.name) + '</div>' +
+        '<div style="font-size:10px;color:var(--t3)">' + _esc(t.desc) + ' — ' + count + ' objects</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') || '<div style="font-size:11px;color:var(--t3)">No templates saved yet.</div>';
+}
+
+function pwaAddElementTypeModal() {
+  openModal('Add Element Type',
+    '<div class="col">' +
+      '<div class="sec-label">Key (ALL_CAPS, no spaces)</div>' +
+      '<input type="text" id="new-type-key" placeholder="e.g. BANNER" style="text-transform:uppercase">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Icon (single emoji or symbol)</div>' +
+      '<input type="text" id="new-type-icon" placeholder="e.g. 📢">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Label</div>' +
+      '<input type="text" id="new-type-label" placeholder="e.g. Banner">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Description</div>' +
+      '<input type="text" id="new-type-desc" placeholder="What this type represents">' +
+    '</div>',
+    '<button class="btn teal" onclick="pwaSaveElementType()">Add Type</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function pwaSaveElementType() {
+  var key = (document.getElementById('new-type-key').value || '').trim().toUpperCase().replace(/\s+/g,'_');
+  var icon = (document.getElementById('new-type-icon').value || '').trim() || '◻';
+  var label = (document.getElementById('new-type-label').value || '').trim();
+  var desc = (document.getElementById('new-type-desc').value || '').trim();
+  if(!key || !label) { toast('Key and Label are required'); return; }
+  if(AK.pwaLibrary.elementTypes[key]) { toast('Type key already exists: ' + key); return; }
+  AK.pwaLibrary.elementTypes[key] = { icon: icon, label: label, desc: desc, isBuiltin: false };
+  AK.save();
+  syncLibraryGlobals();
+  closeModal();
+  renderLibTypes();
+  toast('Added type: ' + label);
+}
+
+function pwaDeleteType(key) {
+  var t = AK.pwaLibrary.elementTypes[key];
+  if(!t || t.isBuiltin) { toast('Built-in types cannot be deleted'); return; }
+  delete AK.pwaLibrary.elementTypes[key];
+  AK.save();
+  syncLibraryGlobals();
+  renderLibTypes();
+  toast('Removed type: ' + key);
+}
+
+function pwaAddArchetypeModal() {
+  openModal('Add Screen Archetype',
+    '<div class="col">' +
+      '<div class="sec-label">ID (lowercase, hyphens ok)</div>' +
+      '<input type="text" id="new-arch-id" placeholder="e.g. arch-profile">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Icon</div>' +
+      '<input type="text" id="new-arch-icon" placeholder="e.g. 👤">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Name</div>' +
+      '<input type="text" id="new-arch-name" placeholder="e.g. User Profile">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Description</div>' +
+      '<input type="text" id="new-arch-desc" placeholder="What screens use this archetype?">' +
+    '</div>',
+    '<button class="btn teal" onclick="pwaSaveArchetype()">Add Archetype</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function pwaSaveArchetype() {
+  var id = (document.getElementById('new-arch-id').value || '').trim().toLowerCase().replace(/\s+/g,'-');
+  var icon = (document.getElementById('new-arch-icon').value || '').trim() || '◻';
+  var name = (document.getElementById('new-arch-name').value || '').trim();
+  var desc = (document.getElementById('new-arch-desc').value || '').trim();
+  if(!id || !name) { toast('ID and Name are required'); return; }
+  if(AK.pwaLibrary.screenArchetypes.find(function(a){ return a.id === id; })) { toast('Archetype ID already exists'); return; }
+  AK.pwaLibrary.screenArchetypes.push({ id: id, icon: icon, name: name, desc: desc });
+  AK.save();
+  syncLibraryGlobals();
+  closeModal();
+  renderLibArchetypes();
+  toast('Added archetype: ' + name);
+}
+
+function pwaDeleteArchetype(idx) {
+  AK.pwaLibrary.screenArchetypes.splice(idx, 1);
+  AK.save();
+  syncLibraryGlobals();
+  renderLibArchetypes();
+  toast('Archetype removed');
+}
+
+function pwaAddPatternModal() {
+  openModal('Add Interaction Pattern',
+    '<div class="col">' +
+      '<div class="sec-label">Name</div>' +
+      '<input type="text" id="new-pat-name" placeholder="e.g. Swipe to Archive">' +
+    '</div>' +
+    '<div class="col">' +
+      '<div class="sec-label">Description</div>' +
+      '<input type="text" id="new-pat-desc" placeholder="What this pattern does">' +
+    '</div>',
+    '<button class="btn teal" onclick="pwaSavePattern()">Add Pattern</button>' +
+    '<button class="btn" onclick="closeModal()">Cancel</button>'
+  );
+}
+
+function pwaSavePattern() {
+  var name = (document.getElementById('new-pat-name').value || '').trim();
+  var desc = (document.getElementById('new-pat-desc').value || '').trim();
+  if(!name) { toast('Name is required'); return; }
+  var id = 'pat-' + name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  AK.pwaLibrary.commonPatterns.push({ id: id, name: name, desc: desc });
+  AK.save();
+  closeModal();
+  renderLibPatterns();
+  toast('Added pattern: ' + name);
+}
+
+function pwaDeletePattern(idx) {
+  AK.pwaLibrary.commonPatterns.splice(idx, 1);
+  AK.save();
+  renderLibPatterns();
+  toast('Pattern removed');
+}
+
+function populateTemplateSelect() {
+  var sel = document.getElementById('np-template');
+  if(!sel) return;
+  var opts = '<option value="">Blank project</option>';
+  (AK.pwaLibrary.projectTemplates || []).forEach(function(t) {
+    opts += '<option value="' + _esc(t.id) + '">' + (t.icon||'') + ' ' + _esc(t.name) + '</option>';
+  });
+  sel.innerHTML = opts;
+}
+
+// ════════════════════════════════════════════════════════════════
 //  AI SUMMARY
 // ════════════════════════════════════════════════════════════════
 function saveApiKey(val) { localStorage.setItem('ak_api_key', val); }
@@ -4866,6 +5762,21 @@ function loadApiKeyToInput() {
 }
 
 // ── Build the structured Claude prompt from current diff + registry state
+// ── Honest Version A description for the AI prompt — 'github' and 'baseline'
+// (auto-loaded from a prior stable promotion) are both trustworthy as a stable
+// reference. 'paste' and 'file' could be any intermediate working version, so
+// the prompt should not claim it's the GitHub stable when it might not be.
+function describeSlotASource() {
+  var src = SLOT_SOURCE.a;
+  if(src === 'github' || src === 'baseline') {
+    return 'Version A = stable GitHub version.';
+  }
+  if(src === 'paste' || src === 'file') {
+    return 'Version A = user-provided comparison base (may be an intermediate working version, not the GitHub stable — loaded via ' + src + ', not GitHub fetch).';
+  }
+  return 'Version A = comparison base (source not tracked for this session).';
+}
+
 function buildAuditPrompt() {
   if(!AK.lastDiff) return null;
   var diff = AK.lastDiff;
@@ -4877,7 +5788,7 @@ function buildAuditPrompt() {
 
   var p = 'You are a PWA code review assistant. A developer is comparing two versions of a single-file PWA (index.html).\n\n';
   p += '## Project\n' + (proj ? proj.name + ' ' + proj.version : 'Unknown') + '\n';
-  p += 'Version A = stable GitHub version. Version B = Claude-session working version.\n\n';
+  p += describeSlotASource() + ' Version B = Claude-session working version.\n\n';
 
   p += '## Gap Analysis Summary\n';
   p += 'Elements in B: ' + diff.elsB.length + '  |  ';
@@ -5557,13 +6468,14 @@ function mkSetMode(mode) {
   MK.mode = mode;
   if(mode !== 'dest') { MK.drawing = null; mkCancelPress(); }
   if(mode !== 'cut')  { if(typeof mkCancelCut !== 'undefined') { mkCancelCut(); } mkHideCopyPreview && mkHideCopyPreview(); }
+  if(mode !== 'edit') { if(typeof mkEditCancel !== 'undefined') mkEditCancel(); }
 
   var wrap = document.getElementById('mk-canvas-wrap');
   // Move = native scroll; all others = JS controls touch
   if(wrap) wrap.style.touchAction = (mode === 'move') ? 'pan-y' : 'none';
 
   // Active states
-  ['move','pin','box','cut','shape'].forEach(function(m) {
+  ['move','pin','box','cut','shape','edit'].forEach(function(m) {
     var btn = document.getElementById('mk-mode-' + m);
     if(btn) btn.classList.toggle('active', m === mode);
   });
@@ -5578,7 +6490,8 @@ function mkSetMode(mode) {
     pin:   '\ud83d\udccd Tap anywhere on the screenshot to drop a pin.',
     box:   '\u25ad  Press and drag to draw a box around an area.',
     cut:   '\u29c9  Drag to select a region to copy, then drag the copy to its destination.',
-    shape: 'Draw a shape \u2014 select arrow, line, circle, rectangle, or freehand above.'
+    shape: 'Draw a shape \u2014 select arrow, line, circle, rectangle, or freehand above.',
+    edit:  '\u270b Press and hold any annotation to lift it \u2014 drag to move, grab edges/endpoints to resize.'
   };
   var hint = document.getElementById('mk-mode-hint');
   if(hint) hint.textContent = hints[mode] || '';
@@ -5734,7 +6647,7 @@ function mkTouchEnd(e) {
   mkPointerUp(t ? t.clientX : null, t ? t.clientY : null);
 }
 
-function mkTouchCancel(e) { mkCancelPress(); MK.drawing = null; mkRenderOverlay(); }
+function mkTouchCancel(e) { mkCancelPress(); mkEditCancel(); MK.drawing = null; mkRenderOverlay(); }
 
 var _mkMD = false;
 function mkMouseDown(e) { if(MK.mode === 'move') return; _mkMD = true;  mkPointerDown(e.clientX, e.clientY); }
@@ -6085,6 +6998,98 @@ var MK_SHAPE_DRAW = {
   path: []    // for freehand
 };
 
+// ── Edit mode state ──
+var MK_EDIT = {
+  target: null,       // annotation object being edited
+  grab: null,         // 'body' | 'p1' | 'p2' | 'nw'|'ne'|'sw'|'se' | 'n'|'s'|'e'|'w'
+  lifted: false,      // long-press completed, drag is live
+  liftTimer: null,
+  startPt: null,      // {x,y} percent at press
+  origSnapshot: null  // deep copy of target's geometry at lift, for delta math
+};
+
+function mkEditCancel() {
+  if(MK_EDIT.liftTimer) { clearTimeout(MK_EDIT.liftTimer); MK_EDIT.liftTimer = null; }
+  MK_EDIT.target = null; MK_EDIT.grab = null; MK_EDIT.lifted = false;
+  MK_EDIT.startPt = null; MK_EDIT.origSnapshot = null;
+  mkHidePressRing(false);
+  mkRenderOverlay();
+}
+
+// ── Edit mode hit testing ──
+function mkPctPerPx() {
+  var imgEl = document.getElementById('mk-image');
+  return imgEl && imgEl.offsetWidth ? 100 / imgEl.offsetWidth : 0.3;
+}
+
+function _dist(x1,y1,x2,y2){ var dx=x2-x1, dy=y2-y1; return Math.sqrt(dx*dx+dy*dy); }
+
+function _distToSegment(px,py, x1,y1, x2,y2) {
+  var dx = x2-x1, dy = y2-y1;
+  var lenSq = dx*dx + dy*dy;
+  if(lenSq === 0) return _dist(px,py,x1,y1);
+  var t = Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / lenSq));
+  return _dist(px, py, x1 + t*dx, y1 + t*dy);
+}
+
+// Corner > edge > interior priority. Returns grab code or null.
+function _rectGrab(px, py, x, y, x2, y2, HIT) {
+  var nearL = Math.abs(px - x)  < HIT, nearR = Math.abs(px - x2) < HIT;
+  var nearT = Math.abs(py - y)  < HIT, nearB = Math.abs(py - y2) < HIT;
+  var insideX = px > x - HIT && px < x2 + HIT;
+  var insideY = py > y - HIT && py < y2 + HIT;
+  if(nearL && nearT) return 'nw';
+  if(nearR && nearT) return 'ne';
+  if(nearL && nearB) return 'sw';
+  if(nearR && nearB) return 'se';
+  if(nearT && insideX) return 'n';
+  if(nearB && insideX) return 's';
+  if(nearL && insideY) return 'w';
+  if(nearR && insideY) return 'e';
+  if(px > x && px < x2 && py > y && py < y2) return 'body';
+  return null;
+}
+
+// Returns { anno, grab } or null
+function mkEditHitTest(px, py) {
+  var HIT = 22 * mkPctPerPx();
+  for(var i = MK.annotations.length - 1; i >= 0; i--) {
+    var a = MK.annotations[i];
+
+    if(a.type === 'pin') {
+      if(_dist(px, py, a.x, a.y) < HIT) return { anno: a, grab: 'body' };
+    }
+
+    else if(a.type === 'box') {
+      var g = _rectGrab(px, py, a.x, a.y, a.x2, a.y2, HIT);
+      if(g) return { anno: a, grab: g };
+    }
+
+    else if(a.type === 'shape' && (a.shape === 'line' || a.shape === 'arrow')) {
+      if(_dist(px, py, a.x1, a.y1) < HIT) return { anno: a, grab: 'p1' };
+      if(_dist(px, py, a.x2, a.y2) < HIT) return { anno: a, grab: 'p2' };
+      if(_distToSegment(px, py, a.x1, a.y1, a.x2, a.y2) < HIT * 0.7) return { anno: a, grab: 'body' };
+    }
+
+    else if(a.type === 'shape' && (a.shape === 'rect' || a.shape === 'circle')) {
+      var x = Math.min(a.x1,a.x2), y = Math.min(a.y1,a.y2);
+      var x2 = Math.max(a.x1,a.x2), y2 = Math.max(a.y1,a.y2);
+      var g2 = _rectGrab(px, py, x, y, x2, y2, HIT);
+      if(g2) return { anno: a, grab: g2 };
+      // Note: circle uses its bounding box for hit testing — acceptable
+      // simplification; the visual ellipse fills most of the box.
+    }
+
+    else if(a.type === 'shape' && a.shape === 'free' && a.path) {
+      for(var j = 0; j < a.path.length - 1; j++) {
+        if(_distToSegment(px, py, a.path[j].x, a.path[j].y, a.path[j+1].x, a.path[j+1].y) < HIT * 0.7)
+          return { anno: a, grab: 'body' };
+      }
+    }
+  }
+  return null;
+}
+
 function mkShapePointerDown(cx, cy) {
   var p = mkClientToPercent(cx, cy);
   MK_SHAPE_DRAW.active = true;
@@ -6203,6 +7208,8 @@ function mkPointerDown(cx, cy) {
     mkCutPointerDown(cx, cy);
   } else if(MK.mode === 'shape') {
     mkShapePointerDown(cx, cy);
+  } else if(MK.mode === 'edit') {
+    mkEditPointerDown(cx, cy);
   }
 }
 function mkPointerMove(cx, cy) {
@@ -6217,6 +7224,8 @@ function mkPointerMove(cx, cy) {
     mkCutPointerMove(cx, cy);
   } else if(MK.mode === 'shape') {
     mkShapePointerMove(cx, cy);
+  } else if(MK.mode === 'edit') {
+    mkEditPointerMove(cx, cy);
   }
 }
 function mkPointerUp(cx, cy) {
@@ -6234,8 +7243,129 @@ function mkPointerUp(cx, cy) {
     mkCutPointerUp(cx, cy);
   } else if(MK.mode === 'shape') {
     mkShapePointerUp(cx, cy);
+  } else if(MK.mode === 'edit') {
+    mkEditPointerUp(cx, cy);
   }
 }
+
+// ── Edit mode gesture handlers ──
+var MK_EDIT_LIFT_MS = 280;   // hold-to-lift duration; shorter than the 500ms
+                             // dest-pick press since edit is a frequent action
+
+function mkEditPointerDown(cx, cy) {
+  var p = mkClientToPercent(cx, cy);
+  var hit = mkEditHitTest(p.x, p.y);
+  if(!hit) return;                       // touched empty area — do nothing
+  MK_EDIT.target = hit.anno;
+  MK_EDIT.grab = hit.grab;
+  MK_EDIT.startPt = p;
+  MK_EDIT.origSnapshot = JSON.parse(JSON.stringify(hit.anno));
+  mkShowPressRing(cx, cy);
+  MK_EDIT.liftTimer = setTimeout(function() {
+    MK_EDIT.liftTimer = null;
+    MK_EDIT.lifted = true;
+    mkHidePressRing(true);
+    if(navigator.vibrate) navigator.vibrate(10);   // haptic tick where supported
+    mkRenderOverlay();                             // draw handles + lift styling
+  }, MK_EDIT_LIFT_MS);
+}
+
+function mkEditPointerMove(cx, cy) {
+  if(!MK_EDIT.target) return;
+  var p = mkClientToPercent(cx, cy);
+  // Before lift: small drift cancels (same pattern as dest-pick above)
+  if(!MK_EDIT.lifted) {
+    if(_dist(p.x, p.y, MK_EDIT.startPt.x, MK_EDIT.startPt.y) > 2.5) mkEditCancel();
+    return;
+  }
+  var dx = p.x - MK_EDIT.startPt.x;
+  var dy = p.y - MK_EDIT.startPt.y;
+  mkEditApplyDelta(MK_EDIT.target, MK_EDIT.grab, MK_EDIT.origSnapshot, dx, dy, p);
+  mkEditScheduleRender();
+}
+
+function mkEditPointerUp(cx, cy) {
+  if(MK_EDIT.lifted && MK_EDIT.target) {
+    // Normalize box coords so x<x2,y<y2 invariant holds after edge-crossing drags
+    var a = MK_EDIT.target;
+    if(a.type === 'box') {
+      var nx = Math.min(a.x, a.x2), nx2 = Math.max(a.x, a.x2);
+      var ny = Math.min(a.y, a.y2), ny2 = Math.max(a.y, a.y2);
+      a.x = nx; a.x2 = nx2; a.y = ny; a.y2 = ny2;
+    }
+    mkDebounceSave();
+    mkRenderAnnotationList();   // list shows coords/labels that may reference geometry
+  }
+  mkEditCancel();
+}
+
+var _mkEditRAF = null;
+function mkEditScheduleRender() {
+  if(_mkEditRAF) return;
+  _mkEditRAF = requestAnimationFrame(function() {
+    _mkEditRAF = null;
+    mkRenderOverlay();
+  });
+}
+
+function mkEditApplyDelta(a, grab, orig, dx, dy, p) {
+  var MIN = 1.5;  // minimum size % to prevent collapse-to-zero
+
+  if(a.type === 'pin') {
+    a.x = _clampPct(orig.x + dx); a.y = _clampPct(orig.y + dy);
+  }
+
+  else if(a.type === 'box') {
+    if(grab === 'body') {
+      var w = orig.x2 - orig.x, h = orig.y2 - orig.y;
+      a.x = _clampPct(orig.x + dx, 0, 100 - w); a.x2 = a.x + w;
+      a.y = _clampPct(orig.y + dy, 0, 100 - h); a.y2 = a.y + h;
+    } else {
+      if(grab.indexOf('w') !== -1) a.x  = Math.min(_clampPct(orig.x  + dx), orig.x2 - MIN);
+      if(grab.indexOf('e') !== -1) a.x2 = Math.max(_clampPct(orig.x2 + dx), orig.x  + MIN);
+      if(grab.indexOf('n') !== -1) a.y  = Math.min(_clampPct(orig.y  + dy), orig.y2 - MIN);
+      if(grab.indexOf('s') !== -1) a.y2 = Math.max(_clampPct(orig.y2 + dy), orig.y  + MIN);
+    }
+  }
+
+  else if(a.type === 'shape' && (a.shape === 'line' || a.shape === 'arrow')) {
+    if(grab === 'p1')      { a.x1 = _clampPct(orig.x1 + dx); a.y1 = _clampPct(orig.y1 + dy); }
+    else if(grab === 'p2') { a.x2 = _clampPct(orig.x2 + dx); a.y2 = _clampPct(orig.y2 + dy); }
+    else { // body
+      a.x1 = _clampPct(orig.x1 + dx); a.y1 = _clampPct(orig.y1 + dy);
+      a.x2 = _clampPct(orig.x2 + dx); a.y2 = _clampPct(orig.y2 + dy);
+    }
+  }
+
+  else if(a.type === 'shape' && (a.shape === 'rect' || a.shape === 'circle')) {
+    // x1/y1..x2/y2 are unordered for shapes; operate on the ordered bounds then write back
+    var bx  = Math.min(orig.x1, orig.x2), bx2 = Math.max(orig.x1, orig.x2);
+    var by  = Math.min(orig.y1, orig.y2), by2 = Math.max(orig.y1, orig.y2);
+    if(grab === 'body') {
+      var bw = bx2 - bx, bh = by2 - by;
+      bx = _clampPct(bx + dx, 0, 100 - bw); bx2 = bx + bw;
+      by = _clampPct(by + dy, 0, 100 - bh); by2 = by + bh;
+    } else {
+      if(grab.indexOf('w') !== -1) bx  = Math.min(_clampPct(bx  + dx), bx2 - MIN);
+      if(grab.indexOf('e') !== -1) bx2 = Math.max(_clampPct(bx2 + dx), bx  + MIN);
+      if(grab.indexOf('n') !== -1) by  = Math.min(_clampPct(by  + dy), by2 - MIN);
+      if(grab.indexOf('s') !== -1) by2 = Math.max(_clampPct(by2 + dy), by  + MIN);
+    }
+    a.x1 = bx; a.y1 = by; a.x2 = bx2; a.y2 = by2;
+  }
+
+  else if(a.type === 'shape' && a.shape === 'free' && a.path && orig.path) {
+    // Lift-and-move only: translate every path point + the x1/y1 label anchor
+    a.path = orig.path.map(function(pt){ return { x: _clampPct(pt.x + dx), y: _clampPct(pt.y + dy) }; });
+    a.x1 = _clampPct(orig.x1 + dx); a.y1 = _clampPct(orig.y1 + dy);
+    a.x2 = _clampPct(orig.x2 + dx); a.y2 = _clampPct(orig.y2 + dy);
+  }
+}
+
+function _clampPct(v, lo, hi) {
+  return Math.max(lo !== undefined ? lo : 0, Math.min(hi !== undefined ? hi : 100, v));
+}
+
 function mkCancelPress() {
   if(MK.pressTimer) { clearTimeout(MK.pressTimer); MK.pressTimer = null; }
   MK.pressOrigin = null; mkHidePressRing(false);
@@ -6419,6 +7549,28 @@ function mkRenderOverlay() {
       );
     }
   });
+
+  // Edit mode — handles for the lifted annotation
+  if(MK.mode === 'edit' && MK_EDIT.target && MK_EDIT.lifted) {
+    var t = MK_EDIT.target;
+    var hs = []; // handle positions
+    if(t.type === 'box') {
+      hs = [[t.x,t.y],[t.x2,t.y],[t.x,t.y2],[t.x2,t.y2]];
+    } else if(t.type === 'shape' && (t.shape === 'line' || t.shape === 'arrow')) {
+      hs = [[t.x1,t.y1],[t.x2,t.y2]];
+    } else if(t.type === 'shape' && (t.shape === 'rect' || t.shape === 'circle')) {
+      var hx = Math.min(t.x1,t.x2), hx2 = Math.max(t.x1,t.x2);
+      var hy = Math.min(t.y1,t.y2), hy2 = Math.max(t.y1,t.y2);
+      hs = [[hx,hy],[hx2,hy],[hx,hy2],[hx2,hy2]];
+    }
+    hs.forEach(function(h) {
+      parts.push('<circle cx="' + h[0] + '%" cy="' + h[1] + '%" r="7" fill="var(--bg0)" stroke="var(--teal)" stroke-width="2.5"></circle>');
+    });
+    // Subtle lift glow on pins
+    if(t.type === 'pin') {
+      parts.push('<circle cx="' + t.x + '%" cy="' + t.y + '%" r="18" fill="none" stroke="var(--teal)" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.7"></circle>');
+    }
+  }
 
   // In-progress box
   if(MK.drawing) {
