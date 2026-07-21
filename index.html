@@ -1178,6 +1178,54 @@
     flex-shrink: 0;
   }
 
+  /* ── PROMOTE FULL-PAGE TAKEOVER ── */
+  /* The promote flow uses a full-screen page instead of the shared modal: variable-height
+     content (grouped triage expand/collapse) inside a flex modal proved fragile on iOS
+     Safari. A fixed page with a normally-flowing scroll body avoids the entire class
+     of nested-scroll / clipped-content problems. */
+  #promote-page {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--bg0);
+    display: none;
+    flex-direction: column;
+  }
+  #promote-page.open { display: flex; }
+  #promote-page-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border1);
+    background: var(--bg1);
+  }
+  #promote-page-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--t1);
+  }
+  #promote-page-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #promote-page-footer {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border1);
+    background: var(--bg1);
+  }
+  #promote-page-footer .btn { flex: 1; height: 42px; }
+
   /* ── AUDIT TOOLBAR ── */
   .audit-toolbar {
     display: flex;
@@ -3651,7 +3699,11 @@ function parseHTML(src) {
     var cls = el.className && typeof el.className === 'string' && el.className.trim()
       ? '.' + el.className.trim().split(/\s+/)[0]
       : null;
-    var key = id || cls || el.tagName.toLowerCase();
+    // For elements without an id, prefer name attribute as a stable key before
+    // falling back to first class. Keeps form fields consistently keyed across
+    // versions even when their type attribute changes.
+    var nameAttr = el.getAttribute('name');
+    var key = id || (nameAttr ? '[name=' + nameAttr + ']' : null) || cls || el.tagName.toLowerCase();
     // Only this element's OWN direct text (not nested children's text) — a container
     // <div> wrapping buttons/spans should not have its label be the concatenation of
     // everything inside it.
@@ -3670,9 +3722,21 @@ function parseHTML(src) {
     var type = el.tagName.toLowerCase();
     if(el.getAttribute('type')) type += '[' + el.getAttribute('type') + ']';
     var hasOnclick = el.hasAttribute('onclick') ? '[onclick]' : '';
+    // Attribute fingerprint for change detection beyond just tag+type
+    var onclickRaw = el.getAttribute('onclick') || '';
+    var onclickFn = (onclickRaw.match(/^\s*([a-zA-Z_$][a-zA-Z0-9_$]*)/) || [])[1] || '';
+    var attrs = {
+      inputType:   el.getAttribute('type') || '',
+      placeholder: el.getAttribute('placeholder') || '',
+      name:        nameAttr || '',
+      onclickFn:   onclickFn,
+      required:    el.hasAttribute('required') ? '1' : '',
+      disabled:    el.hasAttribute('disabled') ? '1' : ''
+    };
     elements.push({
       key: key, id: id, cls: cls, type: type, label: label, tag: el.tagName.toLowerCase(),
       normType: normElType(type + hasOnclick),
+      attrs: attrs,
       screen: detectScreen(el)
     });
   });
@@ -3683,6 +3747,70 @@ function parseHTML(src) {
     seen[e.key] = true;
     return true;
   });
+}
+
+// ── JS-Generated Element Scan ──
+// The static DOM parse (parseHTML) cannot see markup that only exists inside JS
+// template strings — e.g. modal forms built via innerHTML. This regex-level scan
+// finds id=-bearing form/control elements inside <script> content and diffs them
+// separately. Best-effort by design: regex over strings, not a real parse.
+function scanJsElements(src) {
+  var out = {};
+  var scriptRe = /<script[\s>][\s\S]*?<\/script>/g;
+  var sm;
+  while((sm = scriptRe.exec(src)) !== null) {
+    var block = sm[0];
+    var elRe = /<(input|button|select|textarea)\b[^>]*\bid=\\?["']([a-zA-Z][\w-]*)\\?["'][^>]*>/g;
+    var em;
+    while((em = elRe.exec(block)) !== null) {
+      var tag = em[1].toLowerCase();
+      var id = '#' + em[2];
+      var typeM = /\btype=\\?["']([\w-]+)\\?["']/.exec(em[0]);
+      var type = tag + (typeM ? '[' + typeM[1] + ']' : '');
+      if(!out[id]) out[id] = { key: id, type: type, tag: tag };
+    }
+  }
+  return out;
+}
+
+function diffJsElements(srcA, srcB) {
+  var mapA = scanJsElements(srcA), mapB = scanJsElements(srcB);
+  var added = [], removed = [], changed = [];
+  Object.keys(mapB).forEach(function(k) {
+    if(!mapA[k]) added.push(mapB[k]);
+    else if(mapA[k].type !== mapB[k].type) changed.push({ key: k, was: mapA[k].type, now: mapB[k].type });
+  });
+  Object.keys(mapA).forEach(function(k) { if(!mapB[k]) removed.push(mapA[k]); });
+  return { added: added, removed: removed, changed: changed,
+           totalA: Object.keys(mapA).length, totalB: Object.keys(mapB).length };
+}
+
+// ── Attribute Census ──
+// Whole-file pattern counts (static HTML AND script strings together). Individual
+// element diffs can miss anonymous/JS-generated markup entirely, but a census delta
+// can't hide: 42 type="number" in A vs 14 in B says "28 fields changed" no matter
+// where those fields live. Cheap, robust magnitude signal.
+function buildAttrCensus(srcA, srcB) {
+  var patterns = [
+    { label: 'type="number" inputs',  re: /type=\\?["']number\\?["']/g },
+    { label: 'type="text" inputs',    re: /type=\\?["']text\\?["']/g },
+    { label: 'type="date" inputs',    re: /type=\\?["']date\\?["']/g },
+    { label: 'type="checkbox" inputs',re: /type=\\?["']checkbox\\?["']/g },
+    { label: 'onclick handlers',      re: /\bonclick=/g },
+    { label: 'oninput handlers',      re: /\boninput=/g },
+    { label: 'onchange handlers',     re: /\bonchange=/g },
+    { label: '<select> elements',     re: /<select\b/g },
+    { label: '<textarea> elements',   re: /<textarea\b/g },
+    { label: '<button> elements',     re: /<button\b/g },
+    { label: '<form> elements',       re: /<form\b/g }
+  ];
+  var rows = [];
+  patterns.forEach(function(p) {
+    var a = (srcA.match(p.re) || []).length;
+    var b = (srcB.match(p.re) || []).length;
+    if(a !== b) rows.push({ label: p.label, a: a, b: b, delta: b - a });
+  });
+  return rows;
 }
 
 function runAudit() {
@@ -3697,8 +3825,23 @@ function runAudit() {
 
   var added = [], removed = [], changed = [];
   Object.keys(mapB).forEach(function(k) {
-    if(!mapA[k]) added.push(mapB[k]);
-    else if(mapA[k].type !== mapB[k].type) changed.push({ el: mapB[k], was: mapA[k] });
+    if(!mapA[k]) { added.push(mapB[k]); return; }
+    var a = mapA[k], b = mapB[k];
+    var attrChanges = [];
+    if(a.type !== b.type) attrChanges.push({ attr: 'type', was: a.type, now: b.type });
+    if(a.attrs && b.attrs) {
+      if(a.attrs.inputType !== b.attrs.inputType && (a.attrs.inputType || b.attrs.inputType))
+        attrChanges.push({ attr: 'input type', was: a.attrs.inputType, now: b.attrs.inputType });
+      if(a.attrs.placeholder !== b.attrs.placeholder && (a.attrs.placeholder || b.attrs.placeholder))
+        attrChanges.push({ attr: 'placeholder', was: a.attrs.placeholder, now: b.attrs.placeholder });
+      if(a.attrs.onclickFn !== b.attrs.onclickFn && (a.attrs.onclickFn || b.attrs.onclickFn))
+        attrChanges.push({ attr: 'onclick', was: a.attrs.onclickFn + '()', now: b.attrs.onclickFn + '()' });
+      if(a.attrs.required !== b.attrs.required)
+        attrChanges.push({ attr: 'required', was: a.attrs.required ? 'yes' : 'no', now: b.attrs.required ? 'yes' : 'no' });
+    }
+    if(a.id && a.label !== b.label && (a.label || b.label))
+      attrChanges.push({ attr: 'label', was: a.label, now: b.label });
+    if(attrChanges.length) changed.push({ el: b, was: a, attrChanges: attrChanges });
   });
   Object.keys(mapA).forEach(function(k) {
     if(!mapB[k]) removed.push(mapA[k]);
@@ -3713,6 +3856,8 @@ function runAudit() {
   });
 
   AK.lastDiff = { added: added, removed: removed, changed: changed, elsA: elsA, elsB: elsB, unexpected: unexpected, projId: projId };
+  AK.lastDiff.jsDiff = diffJsElements(srcA, srcB);
+  AK.lastDiff.attrCensus = buildAttrCensus(srcA, srcB);
 
   // Summary stats — compact inline bar
   var sum = document.getElementById('diff-summary');
@@ -3766,10 +3911,18 @@ function runAudit() {
       '</div></div>';
   });
   changed.forEach(function(c) {
+    var attrLines = (c.attrChanges || []).map(function(ch) {
+      return '<div class="diff-detail" style="margin-top:1px">' +
+        '<span style="color:var(--t3)">' + _esc(ch.attr) + ':</span> ' +
+        '<span style="color:var(--red);text-decoration:line-through">' + _esc(ch.was) + '</span>' +
+        ' → <span style="color:var(--teal)">' + _esc(ch.now) + '</span>' +
+      '</div>';
+    }).join('');
     html += '<div class="diff-item changed"><div class="diff-icon">~</div><div class="diff-content">' +
       '<div class="diff-type">Changed · ' + _esc(c.el.type) + '</div>' +
       '<div class="diff-desc">' + _esc(c.el.key) + '</div>' +
-      '<div class="diff-detail">was: ' + _esc(c.was.type) + '</div>' +
+      (c.el.label ? '<div class="diff-detail" style="color:var(--t3)">' + _esc(c.el.label) + '</div>' : '') +
+      attrLines +
       '</div></div>';
   });
   list.innerHTML = html;
@@ -3900,15 +4053,42 @@ function showPromoteVersionOnlyModal(projId) {
   var currentVersion = proj ? proj.version : '';
   var patchDefault = bumpSemver(currentVersion, 'patch') || currentVersion;
 
-  openModal(
+  openPromotePage(
     '✓ Promote — ' + (proj ? proj.name : 'Project'),
     promoteVersionSectionHtml(currentVersion, patchDefault) +
     '<div style="font-size:11px;color:var(--t2);line-height:1.7">' +
       'No element changes detected against the locked baseline. Promoting will still log this version.' +
     '</div>',
     '<button class="btn teal" onclick="confirmPromote(' + projId + ')">✓ Promote to Stable</button>' +
-    '<button class="btn" onclick="closeModal()">Cancel</button>'
+    '<button class="btn" onclick="closePromotePage()">Cancel</button>'
   );
+}
+
+// ── Full-page promote takeover (replaces the shared modal for this flow) ──
+function openPromotePage(title, bodyHtml, footerHtml) {
+  var page = document.getElementById('promote-page');
+  if(!page) {
+    page = document.createElement('div');
+    page.id = 'promote-page';
+    page.innerHTML =
+      '<div id="promote-page-header">' +
+        '<span id="promote-page-title"></span>' +
+        '<button class="btn sm" onclick="closePromotePage()">✕</button>' +
+      '</div>' +
+      '<div id="promote-page-body"></div>' +
+      '<div id="promote-page-footer"></div>';
+    document.body.appendChild(page);
+  }
+  document.getElementById('promote-page-title').textContent = title;
+  document.getElementById('promote-page-body').innerHTML = bodyHtml;
+  document.getElementById('promote-page-footer').innerHTML = footerHtml;
+  page.classList.add('open');
+  document.getElementById('promote-page-body').scrollTop = 0;
+}
+
+function closePromotePage() {
+  var page = document.getElementById('promote-page');
+  if(page) page.classList.remove('open');
 }
 
 function showPromoteTriageModal(projId) {
@@ -3946,7 +4126,7 @@ function showPromoteTriageModal(projId) {
     bodyHtml = promoteGroupedSummaryHtml(d);
   }
 
-  openModal(
+  openPromotePage(
     '✓ Promote — ' + (proj ? proj.name : 'Project'),
     promoteVersionSectionHtml(currentVersion, patchDefault) +
     '<div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px">' +
@@ -3956,7 +4136,7 @@ function showPromoteTriageModal(projId) {
     '</div>' +
     bodyHtml,
     '<button class="btn teal" onclick="confirmPromote(' + projId + ')">✓ Promote to Stable</button>' +
-    '<button class="btn" onclick="closeModal()">Cancel</button>'
+    '<button class="btn" onclick="closePromotePage()">Cancel</button>'
   );
 }
 
@@ -4184,6 +4364,7 @@ function finalizePromotion(projId, triage, newVersion) {
   }
 
   closeModal();
+  closePromotePage();
   showScreen('registry');
   var total = newElements.length;
   toast('Promoted to ' + version + ' — baseline now ' + total + ' elements (' + (d.added||[]).length + ' added, ' + (d.removed||[]).length + ' removed, ' + (d.restored||[]).length + ' restored, ' + (d.modified||[]).length + ' modified)');
@@ -5797,6 +5978,27 @@ function buildAuditPrompt() {
   p += 'Changed: ' + diff.changed.length + '  |  ';
   p += 'Irregular: ' + (diff.unexpected||[]).length + '\n\n';
 
+  // Attribute census — whole-file magnitude signal that can't be hidden by
+  // anonymous or JS-generated markup. Only rows with a delta are shown.
+  if(diff.attrCensus && diff.attrCensus.length) {
+    p += '## Attribute Census (whole file, A → B)\n';
+    p += 'Raw pattern counts across the ENTIRE file including script strings. Large deltas here with a small element diff above mean many changes were in anonymous or JS-generated markup the element diff cannot see.\n';
+    p += diff.attrCensus.map(function(r){
+      return '- ' + r.label + ': ' + r.a + ' → ' + r.b + ' (' + (r.delta > 0 ? '+' : '') + r.delta + ')';
+    }).join('\n') + '\n\n';
+  }
+
+  // JS-generated element diff — best-effort regex scan of markup inside script strings
+  if(diff.jsDiff && (diff.jsDiff.added.length || diff.jsDiff.removed.length || diff.jsDiff.changed.length)) {
+    var jd = diff.jsDiff;
+    p += '## JS-Generated Elements (inside script template strings; regex best-effort)\n';
+    p += 'Total: A=' + jd.totalA + ' → B=' + jd.totalB + '\n';
+    if(jd.changed.length) p += 'Changed:\n' + jd.changed.map(function(c){ return '- ' + c.key + ': ' + c.was + ' → ' + c.now; }).join('\n') + '\n';
+    if(jd.added.length) p += 'Added:\n' + jd.added.map(function(e){ return '- ' + e.key + ' [' + e.type + ']'; }).join('\n') + '\n';
+    if(jd.removed.length) p += 'Removed:\n' + jd.removed.map(function(e){ return '- ' + e.key + ' [' + e.type + ']'; }).join('\n') + '\n';
+    p += '\n';
+  }
+
   if(diff.unexpected && diff.unexpected.length) {
     p += '## ⚠ IRREGULAR REMOVALS (was OK, now missing — highest priority)\n';
     p += diff.unexpected.map(function(e){ return '- ' + e.key + ' [' + e.type + ']' + (e.label?': "'+e.label+'"':''); }).join('\n') + '\n\n';
@@ -5811,7 +6013,16 @@ function buildAuditPrompt() {
   }
   if(diff.changed.length) {
     p += '## Changed Elements\n';
-    p += diff.changed.map(function(c){ return '- ' + c.el.key + ': was ' + c.was.type + ' → now ' + c.el.type; }).join('\n') + '\n\n';
+    p += diff.changed.map(function(c) {
+      var line = '- ' + c.el.key;
+      if(c.attrChanges && c.attrChanges.length) {
+        line += ': ' + c.attrChanges.map(function(ch){ return ch.attr + ' "' + ch.was + '" → "' + ch.now + '"'; }).join('; ');
+      } else {
+        line += ': was ' + c.was.type + ' → now ' + c.el.type;
+      }
+      if(c.el.label) line += ' ("' + c.el.label + '")';
+      return line;
+    }).join('\n') + '\n\n';
   }
   if(missingReg.length || issueReg.length) {
     p += '## Registry Issues\n';
@@ -5843,14 +6054,19 @@ function buildAuditPrompt() {
     if(cd.modified.length + cd.added.length + cd.removed.length === 0) {
       p += 'No function-level changes detected.\n\n';
     } else {
+      var FN_LINE_CAP = 200;
+      function _capBody(body) {
+        var ls = body.split('\n');
+        return ls.slice(0, FN_LINE_CAP).join('\n') + (ls.length > FN_LINE_CAP ? '\n// [TRUNCATED — ' + (ls.length - FN_LINE_CAP) + ' more lines]' : '');
+      }
       if(cd.modified.length) {
         p += '### Modified Functions (' + cd.modified.length + ')\n';
-        p += 'Before/after code shown for each (capped at 60 lines).\n\n';
+        p += 'Before/after code shown for each (capped at ' + FN_LINE_CAP + ' lines; [TRUNCATED] marker shown if cut).\n\n';
         cd.modified.forEach(function(f) {
           p += '#### ' + f.name + '()\n';
           if(f.bodyA && f.bodyB) {
-            p += 'Version A (stable):\n```js\n' + f.bodyA.split('\n').slice(0,60).join('\n') + '\n```\n';
-            p += 'Version B (new):\n```js\n' + f.bodyB.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+            p += 'Version A (stable):\n```js\n' + _capBody(f.bodyA) + '\n```\n';
+            p += 'Version B (new):\n```js\n' + _capBody(f.bodyB) + '\n```\n\n';
           }
         });
       }
@@ -5860,7 +6076,7 @@ function buildAuditPrompt() {
         cd.removed.forEach(function(f) {
           p += '#### ' + f.name + '()\n';
           if(f.bodyA) {
-            p += 'Version A (stable):\n```js\n' + f.bodyA.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+            p += 'Version A (stable):\n```js\n' + _capBody(f.bodyA) + '\n```\n\n';
           }
         });
       }
@@ -5870,19 +6086,28 @@ function buildAuditPrompt() {
         cd.added.forEach(function(f) {
           p += '#### ' + f.name + '()\n';
           if(f.bodyB) {
-            p += 'Version B (new):\n```js\n' + f.bodyB.split('\n').slice(0,60).join('\n') + '\n```\n\n';
+            p += 'Version B (new):\n```js\n' + _capBody(f.bodyB) + '\n```\n\n';
           }
         });
       }
     }
   }
 
+  p += '## Element Diff Limitations\n';
+  p += 'The element diff above is STRUCTURAL, not exhaustive. Known gaps:\n';
+  p += '- Elements are keyed by #id, [name=…], .first-class, or tag. Anonymous elements (no id/name/unique class) may be undercounted or merged.\n';
+  p += '- Elements built inside JS template strings are invisible to the static DOM parse; see the JS-Generated Elements section (regex-based, best-effort) for those.\n';
+  p += '- "Changed" only surfaces when the key matches in both versions AND an attribute differs. An element removed and re-added under a different id appears as Added+Removed.\n';
+  p += '- Inline style changes, data-* changes, and content-only rewrites are NOT detected at the element level.\n';
+  p += '- Treat the Added/Removed/Changed counts as a minimum floor, not a complete inventory. Cross-check against the Attribute Census deltas: a large census delta with a small element diff means many changes were in anonymous or JS-generated markup.\n';
+  p += '- Function bodies are capped at 200 lines; a [TRUNCATED] marker means display cut, NOT broken code.\n\n';
+
   p += '## Instructions\n';
-  p += '1. VERDICT: Are the changes expected or are there unintended omissions?\n';
-  p += '2. IRREGULAR ITEMS: Flag anything that looks like a silent regression — missing functions, forms, nav elements.\n';
+  p += '1. VERDICT: Are the changes expected? If element counts look low relative to the Attribute Census deltas or the described work, say so plainly.\n';
+  p += '2. IRREGULAR ITEMS: Flag anything that looks like a silent regression — missing functions, forms, nav elements. Distinguish "the tool probably missed it" from "this looks genuinely gone."\n';
   p += '3. SAFE TO PROMOTE: Is Version B safe to push to GitHub? If not, what must be fixed first?\n';
-  p += '4. ACTION LIST: Prioritized, specific items to address.\n';
-  p += 'Be direct. Flag any regressions. The developer is not a programmer — use plain English, no jargon.';
+  p += '4. ACTION LIST: Prioritized, specific items. If the diff appears incomplete, include "manually verify [specific area]" items.\n';
+  p += 'Be direct. The developer is not a programmer — use plain English, no jargon. Never treat a low element count as proof of a small change.';
 
   return p;
 }
