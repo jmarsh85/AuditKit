@@ -4351,7 +4351,8 @@ function finalizePromotion(projId, triage, newVersion) {
       modified: AK.lastDiff.codeDiff.modified.map(function(f){ return f.name; }),
       added:    AK.lastDiff.codeDiff.added.map(function(f){ return f.name; }),
       removed:  AK.lastDiff.codeDiff.removed.map(function(f){ return f.name; })
-    } : null
+    } : null,
+    aiSummary: null   // populated on-demand via generateChangelogAiSummary — never auto-called, no surprise token spend
   });
 
   // ── Version history record — metadata + integrity hash only, NEVER full HTML.
@@ -4376,8 +4377,7 @@ function finalizePromotion(projId, triage, newVersion) {
     },
     screenBreakdown: buildScreenBreakdown(d),
     htmlSize: srcB.length,
-    htmlHash: srcB ? _fnHash(srcB.slice(0, 8000) + srcB.length) : 0,
-    aiSummary: null   // populated on-demand via generateVersionAiSummary — never auto-called, so no surprise token spend
+    htmlHash: srcB ? _fnHash(srcB.slice(0, 8000) + srcB.length) : 0
   });
 
   AK.save();
@@ -4406,108 +4406,110 @@ function showChangelog() {
   if(!proj) { toast('Select a project first'); return; }
   var entries = (AK.changelog[projId] || []).slice();
 
-  var vhHtml = renderVersionHistoryHtml(projId);
-
   var body;
   if(!entries.length) {
-    body = vhHtml + '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj.name) + '.<br>' +
+    body = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj.name) + '.<br>' +
       '<span style="color:var(--t2)">Run a Gap Analysis and tap <strong>✓ Promote to Stable</strong> to start tracking changes.</span></div>';
   } else {
-    body = vhHtml + '<div class="col" style="gap:10px">' +
-      entries.map(function(e){ return renderChangelogEntry(e); }).join('') +
-    '</div>';
+    body = renderChangelogVersionSelectHtml(projId) +
+      '<div id="cl-entries-container" class="col" style="gap:10px">' + renderChangelogEntriesHtml(projId, 'all') + '</div>';
   }
 
   openModal('📜 Changelog — ' + proj.name, body, '<button class="btn" onclick="closeModal()">Close</button>');
 }
 
-// ── Compact version timeline shown above the changelog entries in the same modal ──
-function renderVersionHistoryHtml(projId) {
-  var vh = (AK.versionHistory[projId] || []);
-  if(!vh.length) return '';
-  return '<div style="margin-bottom:12px">' +
-    '<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Version History</div>' +
-    vh.map(function(v, i) {
-      var ds = v.diffSummary || {};
-      var domId = 'vh-summary-' + projId + '-' + i;
-      return '<div style="padding:5px 0;border-bottom:1px solid var(--border1);font-size:11px">' +
-        '<div style="display:flex;align-items:baseline;gap:8px">' +
-          '<span style="color:var(--teal);font-weight:700;font-family:monospace;flex-shrink:0">' + _esc(v.version) + '</span>' +
-          '<span style="color:var(--t3);flex-shrink:0">' + fmtDate(v.ts) + '</span>' +
-          '<span style="color:var(--t2);margin-left:auto;text-align:right">' +
-            v.elementCount + ' el · ' + v.fnCount + ' fn' +
-            ((ds.added||ds.removed||ds.modified) ? ' · <span style="color:var(--amber)">+' + ds.added + '/−' + ds.removed + '/~' + ds.modified + '</span>' : '') +
-          '</span>' +
-        '</div>' +
-        '<div id="' + domId + '">' + renderVersionAiSummaryInner(v, projId, i) + '</div>' +
-      '</div>';
-    }).join('') +
+// ── Version filter dropdown — "All versions" (default, current flat-scroll behavior)
+// or a specific version, which narrows the entry list below to just that promotion.
+function renderChangelogVersionSelectHtml(projId) {
+  var entries = AK.changelog[projId] || [];
+  if(entries.length < 2) return ''; // not worth a selector for a single promotion
+  var opts = '<option value="all">All versions (' + entries.length + ')</option>';
+  entries.forEach(function(e) {
+    opts += '<option value="' + e.id + '">' + _esc(e.version || 'unversioned') + ' — ' + fmtDate(e.ts) + '</option>';
+  });
+  return '<div class="col" style="margin-bottom:10px">' +
+    '<select id="cl-version-filter" onchange="onChangelogVersionFilterChange(' + projId + ')" style="height:36px;font-size:13px">' + opts + '</select>' +
   '</div>';
 }
 
-// ── Renders just the AI-summary line for one version record — either the cached
-// summary text, or a button to generate it. Kept separate from the outer entry markup
-// so a single entry can be refreshed in place after generation without re-rendering
-// the whole timeline (and losing scroll position).
-function renderVersionAiSummaryInner(v, projId, idx) {
-  if(v.aiSummary) {
-    return '<div style="color:var(--t2);margin-top:3px;line-height:1.5">' + _esc(v.aiSummary) + '</div>';
-  }
-  return '<button class="btn sm purple" style="margin-top:4px;padding:3px 8px;font-size:10px" ' +
-    'onclick="generateVersionAiSummary(' + projId + ',' + idx + ',this)">✦ AI Summary</button>';
+function onChangelogVersionFilterChange(projId) {
+  var sel = document.getElementById('cl-version-filter');
+  var filter = sel ? sel.value : 'all';
+  var container = document.getElementById('cl-entries-container');
+  if(container) container.innerHTML = renderChangelogEntriesHtml(projId, filter);
 }
 
-function generateVersionAiSummary(projId, idx, btn) {
+// ── Builds the entry-card list, either all entries (default) or a single entry
+// matching the version filter's selected changelog entry id.
+function renderChangelogEntriesHtml(projId, filterEntryId) {
+  var entries = (AK.changelog[projId] || []).slice();
+  var shown = filterEntryId === 'all' ? entries : entries.filter(function(e){ return String(e.id) === String(filterEntryId); });
+  if(!shown.length) return '<div class="empty-state" style="padding:16px">No entry found for that version.</div>';
+  return shown.map(function(e){ return renderChangelogEntry(e, projId); }).join('');
+}
+
+// ── Generates a plain-English "elegant" summary of one changelog entry, sent to the
+// AI with the actual named items (not just per-screen counts) so the summary can
+// describe WHAT changed, not just how much. Stored on the changelog entry itself
+// (the object that owns the rich per-item data) and cached — never regenerated
+// automatically, so revisiting the changelog never re-spends tokens.
+function generateChangelogAiSummary(projId, entryId, btn) {
   var key = localStorage.getItem('ak_api_key') || '';
   if(!key) { toast('Add your API key in the Audit tab first'); return; }
-  var vh = AK.versionHistory[projId];
-  var v = vh && vh[idx];
-  if(!v) { toast('Version record not found'); return; }
-
-  var entry = null;
-  if(AK.changelog[projId]) entry = AK.changelog[projId].find(function(e){ return String(e.id) === String(v.changelogId); });
+  var entries = AK.changelog[projId];
+  var entry = entries && entries.find(function(e){ return String(e.id) === String(entryId); });
+  if(!entry) { toast('Changelog entry not found'); return; }
 
   btn.disabled = true;
   btn.textContent = '✦ Generating…';
 
-  var breakdown = v.screenBreakdown || {};
-  var breakdownLines = Object.keys(breakdown).map(function(screen) {
-    var b = breakdown[screen];
-    var label = (SCREEN_META[screen] && SCREEN_META[screen].name) || screen;
-    var parts = [];
-    if(b.added) parts.push(b.added + ' added');
-    if(b.removed) parts.push(b.removed + ' removed');
-    if(b.restored) parts.push(b.restored + ' restored');
-    if(b.modified) parts.push(b.modified + ' modified');
-    return '- ' + label + ': ' + parts.join(', ');
-  }).join('\n');
+  function listNames(items) {
+    return (items || []).map(function(i){ return i.name || i.key; }).filter(Boolean);
+  }
+  var addedNames    = listNames(entry.added);
+  var removedNames  = listNames(entry.removed);
+  var restoredNames = listNames(entry.restored);
+  var modifiedNames = listNames(entry.modified);
+
+  var sections = [];
+  if(addedNames.length)    sections.push('Added: ' + addedNames.join(', '));
+  if(removedNames.length)  sections.push('Removed: ' + removedNames.join(', '));
+  if(restoredNames.length) sections.push('Restored: ' + restoredNames.join(', '));
+  if(modifiedNames.length) sections.push('Modified: ' + modifiedNames.join(', '));
 
   var codeLines = '';
-  if(entry && entry.codeDiff) {
+  if(entry.codeDiff) {
     var cd = entry.codeDiff;
-    if((cd.modified||[]).length) codeLines += 'Functions modified: ' + cd.modified.join(', ') + '\n';
-    if((cd.added||[]).length) codeLines += 'Functions added: ' + cd.added.join(', ') + '\n';
-    if((cd.removed||[]).length) codeLines += 'Functions removed: ' + cd.removed.join(', ') + '\n';
+    if((cd.added||[]).length)    codeLines += 'New functions: ' + cd.added.join(', ') + '\n';
+    if((cd.modified||[]).length) codeLines += 'Modified functions: ' + cd.modified.join(', ') + '\n';
+    if((cd.removed||[]).length)  codeLines += 'Removed functions: ' + cd.removed.join(', ') + '\n';
   }
 
-  var manualNotes = entry && entry.notes ? 'Developer notes for this version: ' + entry.notes + '\n' : '';
+  var manualNotes = entry.notes ? 'Developer notes for this version: ' + entry.notes + '\n' : '';
+  var itemNotes = [];
+  ['added','removed','restored','modified'].forEach(function(kind) {
+    (entry[kind]||[]).forEach(function(i){ if(i.note) itemNotes.push((i.name||i.key) + ': ' + i.note); });
+  });
 
-  var prompt = 'You are summarizing a version promotion in a PWA development audit tool, for a non-programmer developer who works by having an AI generate full-file replacements each session.\n\n' +
-    'Version: ' + v.version + '\n' +
-    'Element changes by screen:\n' + (breakdownLines || '(none)') + '\n\n' +
+  var prompt = 'You are writing a changelog summary for a non-programmer who builds a PWA by having an AI generate full-file replacements each session. ' +
+    'They will read this instead of the raw itemized list below, so it needs to actually convey what changed — not just restate counts.\n\n' +
+    'Version: ' + (entry.version || 'unversioned') + '\n\n' +
+    (sections.length ? sections.join('\n') + '\n\n' : 'No element-level changes recorded.\n\n') +
     (codeLines ? codeLines + '\n' : '') +
+    (itemNotes.length ? 'Notes on specific items:\n' + itemNotes.join('\n') + '\n\n' : '') +
     manualNotes +
-    '\nWrite a 1-2 sentence plain-English summary of what this version changed, in terms a non-programmer would understand (what screens/features were affected, not raw counts). No preamble, no markdown, just the summary text.';
+    '\nWrite a short plain-English summary (2-4 sentences) of what this version actually changed — describe the real features/screens/fields by name where useful, ' +
+    'group related items together in your own words (e.g. "added a new Settings screen for API configuration" rather than listing every element), ' +
+    'and skip internal/plumbing items unless they matter to a non-technical reader. No preamble, no markdown, no bullet points — just the narrative summary.';
 
-  var body = JSON.stringify({ model: getActiveModel(), max_tokens: 200, messages: [{ role: 'user', content: prompt }] });
+  var body = JSON.stringify({ model: getActiveModel(), max_tokens: 350, messages: [{ role: 'user', content: prompt }] });
   xhrPost('https://api.anthropic.com/v1/messages', body, { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' })
     .then(function(data) {
       var text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('').trim();
       if(!text) throw new Error('Empty response');
-      v.aiSummary = text;
+      entry.aiSummary = text;
       AK.save();
-      var domEl = document.getElementById('vh-summary-' + projId + '-' + idx);
-      if(domEl) domEl.innerHTML = renderVersionAiSummaryInner(v, projId, idx);
+      refreshChangelogEntryDom(projId, entryId);
     })
     .catch(function(e) {
       toast('AI summary failed: ' + e.message);
@@ -4516,8 +4518,32 @@ function generateVersionAiSummary(projId, idx, btn) {
     });
 }
 
-function renderChangelogEntry(e) {
+// ── Re-renders one changelog entry's card in place after its AI summary lands or
+// its view mode toggles, without rebuilding the whole modal/tab (loses scroll otherwise).
+function refreshChangelogEntryDom(projId, entryId) {
+  var entries = AK.changelog[projId];
+  var entry = entries && entries.find(function(e){ return String(e.id) === String(entryId); });
+  if(!entry) return;
+  var domId = 'cl-entry-' + entryId;
+  var el = document.getElementById(domId);
+  if(el) el.outerHTML = renderChangelogEntry(entry);
+}
+
+// ── Toggles a single changelog entry between the raw itemized view and the AI
+// narrative. View mode is per-entry, kept in memory only (resets to raw on reopen —
+// intentional, since the raw list is the ground truth and elegant is a convenience).
+var CL_VIEW_MODE = {};
+function toggleChangelogEntryView(entryId, projId) {
+  CL_VIEW_MODE[entryId] = CL_VIEW_MODE[entryId] === 'elegant' ? 'raw' : 'elegant';
+  refreshChangelogEntryDom(projId, entryId);
+}
+
+
+function renderChangelogEntry(e, projId) {
   var total = (e.added||[]).length + (e.removed||[]).length + (e.restored||[]).length + (e.modified||[]).length;
+  var domId = 'cl-entry-' + e.id;
+  var viewMode = CL_VIEW_MODE[e.id] || 'raw';
+
   var section = function(items, label, color) {
     if(!items || !items.length) return '';
     return '<div style="margin-top:6px">' +
@@ -4547,23 +4573,58 @@ function renderChangelogEntry(e) {
     }).join('');
     return html + '</div>';
   })();
+
+  // Metadata line (element/function totals) — pulled from the linked version-history
+  // record when available, since that's where the point-in-time totals are stored.
+  var metaLine = '';
+  if(projId && AK.versionHistory[projId]) {
+    var vhMatch = AK.versionHistory[projId].find(function(v){ return String(v.changelogId) === String(e.id); });
+    if(vhMatch) {
+      metaLine = '<div style="font-size:10px;color:var(--t3);margin-top:2px">' +
+        vhMatch.elementCount + ' el · ' + vhMatch.fnCount + ' fn' +
+      '</div>';
+    }
+  }
+
+  var rawBody = (total === 0 && !e.notes && !codeSection ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">No changes vs. previous baseline.</div>' : '') +
+    section(e.added, 'Added', 'var(--green)') +
+    section(e.removed, 'Removed', 'var(--red)') +
+    section(e.restored, 'Restored', 'var(--blue)') +
+    section(e.modified, 'Modified', 'var(--amber)') +
+    codeSection;
+
+  var elegantBody;
+  if(e.aiSummary) {
+    elegantBody = '<div style="color:var(--t2);margin-top:6px;line-height:1.6;font-size:11px">' + _esc(e.aiSummary) + '</div>';
+  } else {
+    elegantBody = '<div style="margin-top:6px">' +
+      '<button class="btn sm purple" onclick="generateChangelogAiSummary(' + projId + ',\'' + e.id + '\',this)">✦ Generate AI Summary</button>' +
+    '</div>';
+  }
+
+  // Toggle only shown when there's something to toggle between (skip for empty/no-op entries)
+  var canToggle = total > 0 || (e.codeDiff && ((e.codeDiff.modified||[]).length + (e.codeDiff.added||[]).length + (e.codeDiff.removed||[]).length) > 0);
+  var toggleBtn = canToggle ? (
+    '<button class="btn sm" style="padding:2px 8px;font-size:10px" onclick="toggleChangelogEntryView(\'' + e.id + '\',' + projId + ')">' +
+      (viewMode === 'raw' ? '✦ Elegant' : '☰ Raw') +
+    '</button>'
+  ) : '';
+
   var notesEdit = '<div style="margin-top:8px">' +
     '<textarea placeholder="Add notes to this entry…" ' +
       'style="width:100%;min-height:36px;font-size:11px;resize:vertical" ' +
       'onclick="event.stopPropagation()" ' +
       'onblur="changelogSaveNote(\'' + e.id + '\', this.value)">' + _esc(e.notes||'') + '</textarea>' +
   '</div>';
-  return '<div class="card" style="padding:10px 12px">' +
+
+  return '<div class="card" id="' + domId + '" style="padding:10px 12px">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline">' +
       '<span style="font-size:12px;font-weight:600;color:var(--t1)">' + _esc(e.version || 'unversioned') + '</span>' +
       '<span style="font-size:10px;color:var(--t3)">' + fmtDate(e.ts) + '</span>' +
     '</div>' +
-    (total === 0 && !e.notes && !codeSection ? '<div style="font-size:11px;color:var(--t2);margin-top:4px">No changes vs. previous baseline.</div>' : '') +
-    section(e.added, 'Added', 'var(--green)') +
-    section(e.removed, 'Removed', 'var(--red)') +
-    section(e.restored, 'Restored', 'var(--blue)') +
-    section(e.modified, 'Modified', 'var(--amber)') +
-    codeSection +
+    metaLine +
+    (toggleBtn ? '<div style="margin-top:6px">' + toggleBtn + '</div>' : '') +
+    (viewMode === 'elegant' && canToggle ? elegantBody : rawBody) +
     notesEdit +
   '</div>';
 }
@@ -4618,7 +4679,7 @@ function renderChangelogInTab() {
     body.innerHTML = '<div class="empty-state" style="padding:20px"><span class="empty-state-icon">📜</span>No promotions logged yet for ' + _esc(proj ? proj.name : 'this project') + '.</div>';
     return;
   }
-  body.innerHTML = '<div class="col" style="gap:10px">' + entries.map(renderChangelogEntry).join('') + '</div>';
+  body.innerHTML = '<div class="col" style="gap:10px">' + entries.map(function(e){ return renderChangelogEntry(e, projId); }).join('') + '</div>';
 }
 
 function addManualChangelogEntry() {
