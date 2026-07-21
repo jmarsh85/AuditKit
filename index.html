@@ -4526,7 +4526,7 @@ function refreshChangelogEntryDom(projId, entryId) {
   if(!entry) return;
   var domId = 'cl-entry-' + entryId;
   var el = document.getElementById(domId);
-  if(el) el.outerHTML = renderChangelogEntry(entry);
+  if(el) el.outerHTML = renderChangelogEntry(entry, projId);
 }
 
 // ── Toggles a single changelog entry between the raw itemized view and the AI
