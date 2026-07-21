@@ -3445,13 +3445,40 @@ function dropFile(slot, e) {
 // ════════════════════════════════════════════════════════════════
 
 function normFnText(s) {
-  return s
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\n]*/g, ' ')
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
-    .replace(/`(?:[^`\\]|\\.)*`/g, '``')
-    .replace(/\s+/g, ' ').trim();
+  // Strip block comments — safe unconditionally, /* */ can't legally straddle
+  // a string literal's quotes in valid JS written the normal way.
+  s = s.replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  // Strip // line comments, but ONLY outside string/template literals. A naive
+  // regex here would truncate anything containing '//' inside a string — most
+  // notably every fetch('https://...') call in this file — chopping off the rest
+  // of that line (and silently corrupting the hash for the whole function).
+  // Do NOT blank string/template-literal CONTENTS either: functions that build UI
+  // via template strings (the majority of this app's form renderers) carry their
+  // real, audit-relevant changes — attribute swaps, new fields, handler renames —
+  // inside those strings. An earlier version of this function blanked all string
+  // contents, which made the hash collide across genuinely different versions of
+  // the same function and silently hid the change from Modified Functions.
+  var out = [], i = 0, n = s.length, inStr = null;
+  while(i < n) {
+    var ch = s[i];
+    if(inStr) {
+      out.push(ch);
+      if(ch === '\\' && i + 1 < n) { out.push(s[i+1]); i += 2; continue; }
+      if(ch === inStr) inStr = null;
+      i++; continue;
+    }
+    if(ch === '"' || ch === "'" || ch === '`') { inStr = ch; out.push(ch); i++; continue; }
+    if(ch === '/' && s[i+1] === '/') {
+      var nl = s.indexOf('\n', i);
+      if(nl === -1) break;
+      i = nl; continue;
+    }
+    out.push(ch); i++;
+  }
+  s = out.join('');
+
+  return s.replace(/\s+/g, ' ').trim();
 }
 
 function _fnHash(str) {
