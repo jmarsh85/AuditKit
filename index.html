@@ -835,6 +835,22 @@
   .mk-anno-fields select  { height: 32px; font-size: 12px; }
   .mk-anno-fields textarea { min-height: 48px; font-size: 12px; }
   .mk-field-label { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .mk-tag-chip { font-size: 11px; padding: 5px 10px; border-radius: 12px; border: 1px solid var(--border2); background: var(--bg3); color: var(--t2); cursor: pointer; transition: all var(--trans); user-select: none; -webkit-user-select: none; }
+  .mk-tag-chip:hover { border-color: var(--border3); color: var(--t1); }
+  .mk-tag-chip.on { background: var(--teal-dim); border-color: var(--teal-border); color: var(--teal); }
+  .log-field-label { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .log-field-row { margin-bottom: 10px; }
+  .log-field-row textarea { min-height: 52px; font-size: 12px; }
+  .log-field-row input[type=text] { font-size: 12px; height: 34px; }
+  .status-chip { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--bg4); color: var(--t2); border: 1px solid var(--border2); text-transform: uppercase; letter-spacing: 0.04em; }
+  .status-chip.sev-critical { background: var(--red-dim); color: var(--red); border-color: rgba(255,77,94,0.3); }
+  .status-chip.sev-high { background: var(--amber-dim); color: var(--amber); border-color: rgba(245,166,35,0.3); }
+  .status-chip.sev-medium { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,159,255,0.3); }
+  .status-chip.sev-low { background: var(--bg4); color: var(--t3); border-color: var(--border2); }
+  .log-editor-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border1); }
+  .log-status-hist { font-size: 10px; color: var(--t3); margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .log-toggle-btn { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg3); color: var(--t2); font-family: 'JetBrains Mono', monospace; font-size: 11px; cursor: pointer; }
+  .log-toggle-btn.on { background: var(--amber-dim); border-color: rgba(245,166,35,0.3); color: var(--amber); }
 
   /* Category color accents */
   .mk-cat-position { border-left: 3px solid #7c9ef5; }
@@ -2288,9 +2304,12 @@
           <span id="log-ref-text"></span>
           <button onclick="logClearRef()" style="background:none;border:none;color:var(--teal);cursor:pointer;font-size:13px;">✕</button>
         </div>
-        <textarea id="log-msg" placeholder="Describe the issue, feature, or note…"></textarea>
+        <div id="log-note-wrap">
+          <textarea id="log-msg" placeholder="Describe the issue, feature, or note…"></textarea>
+        </div>
+        <div id="log-schema-wrap" style="display:none;"></div>
         <div class="log-submit-row">
-          <select id="log-project-sel" style="flex:1;height:36px;font-size:16px">
+          <select id="log-project-sel" style="flex:1;height:36px;font-size:16px" onchange="renderLogTouchesChips()">
             <option value="">No project</option>
           </select>
           <button class="btn teal log-submit-btn" onclick="logSubmit()">Add Entry</button>
@@ -2316,6 +2335,26 @@
           </div>
           <div style="height:10px"></div>
           <div id="entry-list" class="entry-list"></div>
+        </div>
+      </div>
+
+      <!-- CONTINUATION / HANDOFF PROMPT -->
+      <div class="card" style="margin-top:12px;">
+        <div class="card-header">
+          <span class="card-title">Session Handoff</span>
+        </div>
+        <div class="card-body">
+          <p style="color:var(--t2);font-size:12px;line-height:1.5;margin-bottom:10px;">
+            Bundles every open Bug/UI/Feature entry (and any Notes) for the active project into one document a fresh Claude session can pick up cold.
+          </p>
+          <button class="btn teal" style="width:100%" onclick="logGenerateHandoff()">📄 Generate Handoff</button>
+          <div id="log-handoff-wrap" style="display:none;margin-top:14px;">
+            <div class="sec-label">Handoff Document</div>
+            <textarea id="log-handoff-text" readonly style="min-height:200px;"></textarea>
+            <div class="row" style="margin-top:8px;gap:8px;">
+              <button class="btn teal" style="flex:1;" onclick="logCopyHandoff()">⧉ Copy handoff</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2362,6 +2401,8 @@
           <div id="mk-workspace" style="display:none;">
 
             <!-- SESSION NAME -->
+            <div id="mk-case-strip" style="margin-bottom:10px;"></div>
+
             <div style="margin-bottom:10px;">
               <div class="mk-field-label">Session name</div>
               <input type="text" id="mk-session-name" style="height:32px;font-size:12px;" placeholder="e.g. Home screen layout — June 21" oninput="mkDebounceSave()">
@@ -2423,16 +2464,38 @@
             <!-- ANNOTATION LIST -->
             <div id="mk-annotation-list"></div>
 
+            <!-- SESSION-LEVEL SCHEMA FIELDS -->
+            <div class="card" style="margin-top:12px;">
+              <div class="card-header"><span class="card-title">Whole-change fields</span></div>
+              <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;">
+                <div><div class="mk-field-label">Touches (optional)</div>
+                  <div id="mk-touches-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+                  <div class="row" style="gap:6px;">
+                    <input type="text" id="mk-touches-add" placeholder="Add a screen or feature…" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();mkAddTouchTag(this.value);this.value='';}">
+                    <button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="mkAddTouchTag(document.getElementById('mk-touches-add').value);document.getElementById('mk-touches-add').value='';">+ Add</button>
+                  </div>
+                </div>
+                <div><div class="mk-field-label">Done when (optional)</div>
+                  <input type="text" id="mk-done-when" placeholder="One testable line for when this is finished…" oninput="mkSetDoneWhen(this.value)"></div>
+              </div>
+            </div>
+
             <!-- ACTIONS -->
             <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap;">
-              <button class="btn teal" style="flex:2;min-width:140px;" onclick="mkGenerateDescription()">✦ Generate Description</button>
+              <button class="btn teal" style="flex:2;min-width:140px;" onclick="mkGenerateDescription()">✦ Generate Prompt</button>
               <button class="btn" style="flex:1;min-width:80px;" onclick="mkShowExportModal()">⬆ Export</button>
+            </div>
+            <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
+              <button class="btn purple" style="flex:1;min-width:140px;" onclick="mkSendAnnotationsToLog()">📋 Send to Log</button>
             </div>
 
             <!-- OUTPUT -->
             <div id="mk-output-wrap" style="display:none;margin-top:14px;">
-              <div class="sec-label">Generated Description</div>
+              <div class="sec-label">Generated Prompt</div>
               <textarea id="mk-output-text" readonly style="min-height:160px;"></textarea>
+              <div class="row" style="margin-top:8px;gap:8px;">
+                <button class="btn teal" style="flex:1;" onclick="mkCopyOutput()">⧉ Copy prompt</button>
+              </div>
             </div>
 
             <div id="mk-save-indicator" style="font-size:10px;color:var(--t3);text-align:right;margin-top:6px;min-height:13px;"></div>
@@ -2658,6 +2721,8 @@ var AK = {
   lastPromoteDiff: null,
   pwaLibrary: null,   // hydrated on load from getDefaultPwaLibrary()
   versionHistory: {}, // { [projectId]: [ VersionRecord, ... ] newest-first } — metadata only, no full HTML
+  screenTags: {},     // { [projectId]: [tag strings] } — grows as you add custom screen/feature tags per project
+  presetTags: {},     // { trigger:[], data:[], edge:[] } — global growable preset chip pools for Log's schema fields
 
   STORAGE_KEY: 'auditkit_v1',
 
@@ -2671,7 +2736,9 @@ var AK = {
       log: this.log,
       activeProject: this.activeProject,
       pwaLibrary: this.pwaLibrary,
-      versionHistory: this.versionHistory
+      versionHistory: this.versionHistory,
+      screenTags: this.screenTags,
+      presetTags: this.presetTags
     }));
   },
 
@@ -2711,6 +2778,8 @@ var AK = {
       this.activeProject = d.activeProject || null;
       this.pwaLibrary = d.pwaLibrary ? mergePwaLibrary(d.pwaLibrary) : getDefaultPwaLibrary();
       this.versionHistory = d.versionHistory || {};
+      this.screenTags = d.screenTags || {};
+      this.presetTags = d.presetTags || {};
     } catch(e) {}
     this.migrateLegacyRegistry();
     syncLibraryGlobals();
@@ -2775,7 +2844,7 @@ function showScreen(name) {
   document.getElementById('screen-' + name).classList.add('active');
   document.querySelectorAll('.nav-tab')[screens[name]].classList.add('active');
   if(name === 'registry') renderRegistry();
-  if(name === 'log') renderLogEntries();
+  if(name === 'log') { renderLogEntries(); logSyncFormDisplay(); }
   if(name === 'projects') renderProjects();
   if(name === 'audit') { populateAuditSelects(); initAiPanel(); }
   if(name === 'mockup') mkInit();
@@ -5404,11 +5473,329 @@ function doExportRegistry() {
 //  LOG
 // ════════════════════════════════════════════════════════════════
 var LOG_FILTER = 'all';
+var LOG_DRAFT = { touches: [], extra: {}, tags: {} };
+var LOG_OPEN_ENTRY = null;
+
+var LOG_STATUS_SETS = {
+  bug:  [ {id:'never-repro', label:'Never reproduced'}, {id:'reproducing', label:'Reproducing'}, {id:'root-caused', label:'Root-caused'}, {id:'fixed-unverified', label:'Fixed (unverified)'}, {id:'fixed-verified', label:'Fixed & verified'} ],
+  feat: [ {id:'not-started', label:'Not started'}, {id:'researching', label:'Researching'}, {id:'design-in-progress', label:'Design doc in progress'}, {id:'design-locked', label:'Design doc locked'}, {id:'building', label:'Building'}, {id:'prototype-only', label:'Prototype only'}, {id:'shipped', label:'Shipped'} ],
+  ui:   [ {id:'flagged', label:'Flagged'}, {id:'needs-design', label:'Needs design pass'}, {id:'design-approved', label:'Design approved'}, {id:'implemented', label:'Implemented'} ]
+};
+var LOG_CAT_LABELS = { bug:'Bug', ui:'UI', feat:'Feature', note:'Note' };
+function logEntryText(e) { return e.cat === 'note' ? (e.msg||'') : ((e.fields && e.fields.why) || ''); }
+
+// Base schema — shared by bug/ui/feat entries
+var LOG_BASE_FIELDS = [
+  { key: 'why',     label: 'Why',                    ph: 'What\u2019s wrong or missing, and why it matters\u2026' },
+  { key: 'trigger', label: 'Trigger (optional)',      ph: 'What starts this \u2014 tap, load, swipe, event\u2026' },
+  { key: 'where',   label: 'Where (optional)',        ph: 'Screen/component' },
+  { key: 'data',    label: 'Data & storage (optional)', ph: 'New fields, where stored, migration needed?' },
+  { key: 'visual',  label: 'Visual spec (optional)',  ph: 'Layout/spacing/colour \u2014 reference existing CSS tokens\u2026' },
+  { key: 'edge',    label: 'Edge cases (optional)',   ph: 'Empty state, error state, offline, first run\u2026' }
+];
+
+// Type-specific extras
+var LOG_EXTRA_FIELDS = {
+  bug: [
+    { key: 'bugType',         label: 'Bug type',                     type: 'select', presetKey: 'bugType' },
+    { key: 'severity',        label: 'Severity',                     type: 'select', presetKey: 'severity' },
+    { key: 'reproducibility', label: 'Reproducibility',              type: 'select', presetKey: 'reproducibility' },
+    { key: 'cause',           label: 'Suspected cause (optional)',   type: 'text', ph: 'A lead, a related fix, a pattern you noticed\u2026' }
+  ],
+  feat: [
+    { key: 'featureType', label: 'Feature type',                     type: 'select', presetKey: 'featureType' },
+    { key: 'research',    label: 'Research status (optional)',        type: 'text', ph: 'What\u2019s been researched, and where the writeup lives\u2026' },
+    { key: 'designNote',  label: 'Design doc status note (optional)', type: 'text', ph: 'Not started / in progress / locked \u2014 elaborate here\u2026' },
+    { key: 'nearTerm',    label: 'Near-term scope (optional)',        type: 'text', ph: 'What\u2019s actually being built now\u2026' },
+    { key: 'futureVision',label: 'Future-state vision (optional)',    type: 'text', ph: 'Longer-term direction, not being built yet\u2026' }
+  ],
+  ui: [
+    { key: 'changeType', label: 'Change type', type: 'select', presetKey: 'changeType' },
+    { key: 'scope',      label: 'Scope',        type: 'select', presetKey: 'scope' },
+    { key: 'shipped',    label: 'Already shipped on this screen (optional)', type: 'text', ph: 'What already exists here, so this isn\u2019t redesigned blind\u2026' }
+  ]
+};
+
+// Fields that get a pick-from-list-with-custom-add chip row above their
+// free-text elaboration textarea, plus the growable default vocab for each.
+var LOG_CHIP_FIELDS = ['trigger', 'data', 'edge'];
+var LOG_PRESET_DEFAULTS = {
+  trigger: ['Tap', 'Load', 'Swipe', 'Threshold met', 'Background event', 'Navigation'],
+  data:    ['localStorage', 'IndexedDB', 'Synced (Cloudflare KV)', 'No new storage'],
+  edge:    ['Empty state', 'Error state', 'Offline', 'First run', 'Slow network', 'Large dataset'],
+  bugType:         ['Visual/Cosmetic', 'Functional', 'Crash/Freeze', 'Data integrity', 'Performance', 'Navigation', 'Other'],
+  severity:        ['Low', 'Medium', 'High', 'Critical'],
+  reproducibility: ['Always', 'Sometimes', 'Rare', 'Happened once'],
+  changeType:      ['Layout/spacing', 'Color/theme', 'Typography', 'Copy/wording', 'Interaction/animation', 'Accessibility', 'Other'],
+  scope:           ['Component-level', 'Full-screen redesign', 'System-wide (design tokens)'],
+  featureType:     ['New capability', 'Enhancement', 'Integration/API', 'Backend/infra', 'Experimental']
+};
+
+// ── Generic multi-select chip fields, shared by the creation draft (entryId
+// null, backed by LOG_DRAFT.tags) and an existing entry's editor (entryId
+// set, backed by e.tags). Custom additions grow the global preset pool so
+// they preload as options everywhere next time. ──
+function logGetPresetTags(key) {
+  if(!AK.presetTags[key]) AK.presetTags[key] = (LOG_PRESET_DEFAULTS[key] || []).slice();
+  return AK.presetTags[key];
+}
+function logGetFieldTagsArray(entryId, key) {
+  if(entryId == null) {
+    if(!LOG_DRAFT.tags) LOG_DRAFT.tags = {};
+    if(!LOG_DRAFT.tags[key]) LOG_DRAFT.tags[key] = [];
+    return LOG_DRAFT.tags[key];
+  }
+  var e = AK.log.find(function(x){ return x.id === entryId; });
+  if(!e) return [];
+  if(!e.tags) e.tags = {};
+  if(!e.tags[key]) e.tags[key] = [];
+  return e.tags[key];
+}
+function logToggleFieldTag(entryId, key, tag) {
+  var arr = logGetFieldTagsArray(entryId, key);
+  var idx = arr.indexOf(tag);
+  if(idx === -1) arr.push(tag); else arr.splice(idx, 1);
+  if(entryId == null) { renderLogEntryForm(AK.logCat); }
+  else { var e = AK.log.find(function(x){ return x.id === entryId; }); if(e) e.tsUpdated = new Date().toISOString(); AK.save(); renderLogEntries(); }
+}
+function logAddFieldTag(entryId, key, raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var pool = logGetPresetTags(key);
+  var existing = pool.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { pool.push(val); AK.save(); }
+  var canonical = existing || val;
+  var arr = logGetFieldTagsArray(entryId, key);
+  if(arr.indexOf(canonical) === -1) arr.push(canonical);
+  if(entryId == null) { renderLogEntryForm(AK.logCat); }
+  else { var e = AK.log.find(function(x){ return x.id === entryId; }); if(e) e.tsUpdated = new Date().toISOString(); AK.save(); renderLogEntries(); }
+}
+function logFieldTagsHtml(entryId, key) {
+  var arr = logGetFieldTagsArray(entryId, key);
+  var pool = logGetPresetTags(key);
+  arr.forEach(function(t){ if(pool.indexOf(t) === -1) pool.push(t); });
+  var idSuffix = (entryId == null ? 'draft' : entryId) + '-' + key;
+  var chips = pool.map(function(t) {
+    var on = arr.indexOf(t) !== -1;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="logToggleFieldTag(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('');
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' + chips + '</div>' +
+    '<div class="row" style="gap:6px;margin-bottom:6px;">' +
+      '<input type="text" id="log-tagadd-' + idSuffix + '" placeholder="Add option…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();logAddFieldTag(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',this.value);this.value=\'\';}">' +
+      '<button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="logAddFieldTag(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',document.getElementById(\'log-tagadd-' + idSuffix + '\').value);document.getElementById(\'log-tagadd-' + idSuffix + '\').value=\'\';">+ Add</button>' +
+    '</div>';
+}
+
+// ── Single-select preset fields (Bug type/Severity/Reproducibility, UI
+// Change type/Scope, Feature type). Global growable pool like the multi-select
+// fields above, but only one value can be active — clicking the active chip
+// clears it. Stored in extra[key] like the other type-specific extras. ──
+function logSetSingleField(entryId, key, val) {
+  if(entryId == null) {
+    LOG_DRAFT.extra[key] = (LOG_DRAFT.extra[key] === val) ? '' : val;
+    renderLogEntryForm(AK.logCat);
+  } else {
+    var e = AK.log.find(function(x){ return x.id === entryId; });
+    if(!e) return;
+    if(!e.extra) e.extra = {};
+    e.extra[key] = (e.extra[key] === val) ? '' : val;
+    e.tsUpdated = new Date().toISOString();
+    AK.save();
+    renderLogEntries();
+  }
+}
+function logAddSingleField(entryId, key, presetKey, raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var pool = logGetPresetTags(presetKey);
+  var existing = pool.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { pool.push(val); AK.save(); }
+  logSetSingleField(entryId, key, existing || val);
+}
+function logSingleSelectHtml(entryId, key, presetKey) {
+  var pool = logGetPresetTags(presetKey);
+  var current = entryId == null ? LOG_DRAFT.extra[key] : (function(){ var e = AK.log.find(function(x){ return x.id === entryId; }); return e && e.extra && e.extra[key]; })();
+  if(current && pool.indexOf(current) === -1) pool.push(current);
+  var idSuffix = (entryId == null ? 'draft' : entryId) + '-' + key;
+  var chips = pool.map(function(t) {
+    var on = current === t;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="logSetSingleField(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('');
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' + chips + '</div>' +
+    '<div class="row" style="gap:6px;margin-bottom:6px;">' +
+      '<input type="text" id="log-singleadd-' + idSuffix + '" placeholder="Add option…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();logAddSingleField(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',\'' + presetKey + '\',this.value);this.value=\'\';}">' +
+      '<button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="logAddSingleField(' + (entryId == null ? 'null' : entryId) + ',\'' + key + '\',\'' + presetKey + '\',document.getElementById(\'log-singleadd-' + idSuffix + '\').value);document.getElementById(\'log-singleadd-' + idSuffix + '\').value=\'\';">+ Add</button>' +
+    '</div>';
+}
+
+// ── Where: single-select from the project's own screen-tag pool (same pool
+// Touches draws from), not a global preset — every project has different
+// screen names. ──
+function logSetWhere(entryId, val) {
+  if(entryId == null) {
+    LOG_DRAFT.where = (LOG_DRAFT.where === val) ? '' : val;
+    renderLogEntryForm(AK.logCat);
+  } else {
+    var e = AK.log.find(function(x){ return x.id === entryId; });
+    if(!e) return;
+    if(!e.fields) e.fields = {};
+    e.fields.where = (e.fields.where === val) ? '' : val;
+    e.tsUpdated = new Date().toISOString();
+    AK.save();
+    renderLogEntries();
+  }
+}
+function logAddWhere(entryId, raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var e = entryId == null ? null : AK.log.find(function(x){ return x.id === entryId; });
+  var projId = entryId == null ? (parseInt(document.getElementById('log-project-sel').value) || null) : (e && e.projectId);
+  var tags = logGetProjectTags(projId);
+  var existing = tags.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { tags.push(val); AK.save(); }
+  logSetWhere(entryId, existing || val);
+}
+function logWhereHtml(entryId) {
+  var e = entryId == null ? null : AK.log.find(function(x){ return x.id === entryId; });
+  var projId = entryId == null ? (parseInt(document.getElementById('log-project-sel').value) || null) : (e && e.projectId);
+  var tags = logGetProjectTags(projId);
+  var current = entryId == null ? LOG_DRAFT.where : (e && e.fields && e.fields.where);
+  if(current && tags.indexOf(current) === -1) tags.push(current);
+  var chipsHtml = tags.length ? tags.map(function(t) {
+    var on = current === t;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="logSetWhere(' + (entryId == null ? 'null' : entryId) + ',\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('') : '<span style="font-size:11px;color:var(--t3);">No screens yet for this project \u2014 type one below.</span>';
+  var addId = 'log-where-add-' + (entryId == null ? 'draft' : entryId);
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' + chipsHtml + '</div>' +
+    '<div class="row" style="gap:6px;margin-bottom:6px;">' +
+      '<input type="text" id="' + addId + '" placeholder="Add a screen…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();logAddWhere(' + (entryId == null ? 'null' : entryId) + ',this.value);this.value=\'\';}">' +
+      '<button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="logAddWhere(' + (entryId == null ? 'null' : entryId) + ',document.getElementById(\'' + addId + '\').value);document.getElementById(\'' + addId + '\').value=\'\';">+ Add</button>' +
+    '</div>';
+}
+
+function logSyncFormDisplay() {
+  var cat = AK.logCat || 'bug';
+  var noteWrap = document.getElementById('log-note-wrap');
+  var schemaWrap = document.getElementById('log-schema-wrap');
+  if(!noteWrap || !schemaWrap) return;
+  if(cat === 'note') {
+    noteWrap.style.display = 'block';
+    schemaWrap.style.display = 'none';
+  } else {
+    noteWrap.style.display = 'none';
+    schemaWrap.style.display = 'block';
+    renderLogEntryForm(cat);
+  }
+}
 
 function logSelCat(cat) {
   AK.logCat = cat;
   document.querySelectorAll('.cat-btn').forEach(function(b){ b.className = 'cat-btn'; });
   event.target.className = 'cat-btn active-' + cat;
+  LOG_DRAFT = { touches: [], extra: {}, tags: {} };
+  var noteWrap = document.getElementById('log-note-wrap');
+  var schemaWrap = document.getElementById('log-schema-wrap');
+  if(cat === 'note') {
+    noteWrap.style.display = 'block';
+    schemaWrap.style.display = 'none';
+  } else {
+    noteWrap.style.display = 'none';
+    schemaWrap.style.display = 'block';
+    renderLogEntryForm(cat);
+  }
+}
+
+function logGetProjectTags(projId) {
+  if(!projId) return [];
+  if(!AK.screenTags[projId]) AK.screenTags[projId] = [];
+  return AK.screenTags[projId];
+}
+
+function logFieldRowHtml(f, val, oninputExpr, chipsHtml) {
+  return '<div class="log-field-row"><div class="log-field-label">' + _esc(f.label) + '</div>' +
+    (chipsHtml || '') +
+    '<textarea placeholder="' + _esc(f.ph) + '" oninput="' + oninputExpr + '">' + _esc(val || '') + '</textarea></div>';
+}
+
+function renderLogEntryForm(cat) {
+  var wrap = document.getElementById('log-schema-wrap');
+  var statusOpts = LOG_STATUS_SETS[cat].map(function(s){ return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('');
+  var baseHtml = LOG_BASE_FIELDS.map(function(f) {
+    if(f.key === 'where') {
+      return '<div class="log-field-row"><div class="log-field-label">' + _esc(f.label) + '</div>' + logWhereHtml(null) + '</div>';
+    }
+    var chips = LOG_CHIP_FIELDS.indexOf(f.key) !== -1 ? logFieldTagsHtml(null, f.key) : '';
+    return logFieldRowHtml(f, LOG_DRAFT[f.key], 'logSetField(\'' + f.key + '\',this.value)', chips);
+  }).join('');
+  var extraHtml = (LOG_EXTRA_FIELDS[cat] || []).map(function(f) {
+    if(f.type === 'select') {
+      return '<div class="log-field-row"><div class="log-field-label">' + _esc(f.label) + '</div>' + logSingleSelectHtml(null, f.key, f.presetKey) + '</div>';
+    }
+    return logFieldRowHtml(f, LOG_DRAFT.extra[f.key], 'logSetExtraField(\'' + f.key + '\',this.value)');
+  }).join('');
+  var featureExtraHtml = '';
+  if(cat === 'feat') {
+    var otherFeats = AK.log.filter(function(e){ return e.cat === 'feat' && e.projectId == (parseInt(document.getElementById('log-project-sel').value)||null); });
+    featureExtraHtml =
+      '<div class="log-field-row"><div class="log-field-label">Related feature (optional)</div>' +
+        '<select onchange="logSetExtraField(\'relatedId\',this.value)"><option value="">None</option>' +
+          otherFeats.map(function(e){ return '<option value="' + e.id + '">' + _esc((e.fields&&e.fields.why||'').slice(0,40) || ('Entry #'+e.id)) + '</option>'; }).join('') +
+        '</select>' +
+        '<input type="text" style="margin-top:6px" placeholder="How they relate…" oninput="logSetExtraField(\'relatedNote\',this.value)"></div>';
+  }
+  var uiExtraHtml = '';
+  if(cat === 'ui') {
+    uiExtraHtml = '<div class="log-field-row"><button type="button" class="log-toggle-btn' + (LOG_DRAFT.extra.designBeforeCode ? ' on' : '') + '" onclick="logToggleDesignFlag()">' +
+      (LOG_DRAFT.extra.designBeforeCode ? '\u2713 Needs its own design pass' : 'Quick fix \u2014 tap to flag as needing design pass') + '</button></div>';
+  }
+  wrap.innerHTML =
+    '<div class="log-field-row"><div class="log-field-label">Status</div>' +
+      '<select onchange="logSetField(\'status\',this.value)">' + statusOpts + '</select></div>' +
+    baseHtml + extraHtml + featureExtraHtml + uiExtraHtml +
+    '<div class="log-field-row"><div class="log-field-label">Touches (optional)</div>' +
+      '<div id="log-touches-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>' +
+      '<div class="row" style="gap:6px;">' +
+        '<input type="text" id="log-touches-add" placeholder="Add a screen or feature…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();logAddTouchTag(this.value);this.value=\'\';}">' +
+        '<button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="logAddTouchTag(document.getElementById(\'log-touches-add\').value);document.getElementById(\'log-touches-add\').value=\'\';">+ Add</button>' +
+      '</div></div>' +
+    '<div class="log-field-row"><div class="log-field-label">Done when (optional)</div>' +
+      '<input type="text" placeholder="One testable line for when this is finished…" oninput="logSetField(\'doneWhen\',this.value)"></div>';
+  renderLogTouchesChips();
+}
+
+function logSetField(key, val) { LOG_DRAFT[key] = val; }
+function logSetExtraField(key, val) { LOG_DRAFT.extra[key] = val; }
+function logToggleDesignFlag() {
+  LOG_DRAFT.extra.designBeforeCode = !LOG_DRAFT.extra.designBeforeCode;
+  renderLogEntryForm(AK.logCat);
+}
+function logAddTouchTag(raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var projId = parseInt(document.getElementById('log-project-sel').value) || null;
+  var tags = logGetProjectTags(projId);
+  var existing = tags.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { tags.push(val); AK.save(); }
+  var canonical = existing || val;
+  if(LOG_DRAFT.touches.indexOf(canonical) === -1) LOG_DRAFT.touches.push(canonical);
+  renderLogTouchesChips();
+}
+function logToggleTouchTag(tag) {
+  var idx = LOG_DRAFT.touches.indexOf(tag);
+  if(idx === -1) LOG_DRAFT.touches.push(tag); else LOG_DRAFT.touches.splice(idx, 1);
+  renderLogTouchesChips();
+}
+function renderLogTouchesChips() {
+  var wrap = document.getElementById('log-touches-chips');
+  if(!wrap) return;
+  var projId = parseInt(document.getElementById('log-project-sel').value) || null;
+  var tags = logGetProjectTags(projId);
+  LOG_DRAFT.touches.forEach(function(t){ if(tags.indexOf(t) === -1) tags.push(t); });
+  if(!tags.length) { wrap.innerHTML = '<span style="font-size:11px;color:var(--t3);">No tags yet for this project — type one below.</span>'; return; }
+  wrap.innerHTML = tags.map(function(t) {
+    var on = LOG_DRAFT.touches.indexOf(t) !== -1;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="logToggleTouchTag(\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('');
 }
 
 function logClearRef() {
@@ -5417,19 +5804,31 @@ function logClearRef() {
 }
 
 function logSubmit() {
-  var msg = document.getElementById('log-msg').value.trim();
-  if(!msg) { toast('Write a description first'); return; }
+  var cat = AK.logCat;
   var projId = parseInt(document.getElementById('log-project-sel').value) || null;
-  AK.log.unshift({
-    id: Date.now(),
-    ts: new Date().toISOString(),
-    cat: AK.logCat,
-    msg: msg,
-    screen: AK.screen,
-    ref: AK.logRef,
-    projectId: projId
-  });
-  document.getElementById('log-msg').value = '';
+
+  if(cat === 'note') {
+    var msg = document.getElementById('log-msg').value.trim();
+    if(!msg) { toast('Write a description first'); return; }
+    AK.log.unshift({ id: Date.now(), ts: new Date().toISOString(), cat: 'note', msg: msg, screen: AK.screen, ref: AK.logRef, projectId: projId });
+    document.getElementById('log-msg').value = '';
+  } else {
+    if(!LOG_DRAFT.why || !LOG_DRAFT.why.trim()) { toast('Fill in "Why" first'); return; }
+    var initialStatus = LOG_DRAFT.status || LOG_STATUS_SETS[cat][0].id;
+    var now = new Date().toISOString();
+    AK.log.unshift({
+      id: Date.now(), ts: now, tsUpdated: now, cat: cat, projectId: projId, screen: AK.screen, ref: AK.logRef,
+      fields: { why: LOG_DRAFT.why||'', trigger: LOG_DRAFT.trigger||'', where: LOG_DRAFT.where||'', data: LOG_DRAFT.data||'', visual: LOG_DRAFT.visual||'', edge: LOG_DRAFT.edge||'' },
+      touches: LOG_DRAFT.touches.slice(),
+      doneWhen: LOG_DRAFT.doneWhen||'',
+      status: initialStatus,
+      statusHistory: [{ status: initialStatus, ts: now, note: 'Created' }],
+      extra: LOG_DRAFT.extra,
+      tags: LOG_DRAFT.tags || {}
+    });
+    LOG_DRAFT = { touches: [], extra: {}, tags: {} };
+    renderLogEntryForm(cat);
+  }
   logClearRef();
   AK.save();
   renderLogEntries();
@@ -5443,6 +5842,13 @@ function setLogFilter(f, btn) {
   renderLogEntries();
 }
 
+function logStatusLabel(cat, statusId) {
+  var set = LOG_STATUS_SETS[cat];
+  if(!set) return '';
+  var s = set.find(function(x){ return x.id === statusId; });
+  return s ? s.label : statusId;
+}
+
 function renderLogEntries() {
   var items = LOG_FILTER === 'all' ? AK.log : AK.log.filter(function(e){ return e.cat === LOG_FILTER; });
   var el = document.getElementById('entry-list');
@@ -5452,25 +5858,293 @@ function renderLogEntries() {
   }
   el.innerHTML = items.map(function(e) {
     var proj = AK.projects.find(function(p){ return p.id === e.projectId; });
-    return '<div class="entry-item ' + e.cat + '">' +
-      '<div class="entry-body">' +
+    var preview = logEntryText(e) || '(no description)';
+    var isOpen = LOG_OPEN_ENTRY === e.id;
+    return '<div class="entry-item ' + e.cat + '" id="log-entry-' + e.id + '">' +
+      '<div class="entry-body" style="cursor:pointer" onclick="toggleLogEntryEdit(' + e.id + ')">' +
         '<div class="entry-top">' +
-          '<span class="badge ' + e.cat + '">' + e.cat + '</span>' +
+          '<span class="badge ' + e.cat + '">' + LOG_CAT_LABELS[e.cat] + '</span>' +
           (proj ? '<span class="badge unchecked">' + _esc(proj.name) + '</span>' : '') +
+          (e.status ? '<span class="status-chip">' + _esc(logStatusLabel(e.cat, e.status)) + '</span>' : '') +
+          (e.cat === 'bug' && e.extra && e.extra.severity ? '<span class="status-chip sev-' + e.extra.severity.toLowerCase() + '">' + _esc(e.extra.severity) + '</span>' : '') +
+          (e.mockupSessionId ? '<span class="status-chip">📷 has screenshot</span>' : '') +
         '</div>' +
-        '<div class="entry-msg">' + _esc(e.msg) + '</div>' +
-        '<div class="entry-meta">' + fmtDate(e.ts) + ' · screen: ' + _esc(e.screen) + '</div>' +
+        '<div class="entry-msg">' + _esc(preview) + '</div>' +
+        '<div class="entry-meta">' + fmtDate(e.ts) + (e.tsUpdated && e.tsUpdated !== e.ts ? ' · updated ' + fmtDate(e.tsUpdated) : '') + '</div>' +
         (e.ref ? '<div class="entry-ref">🔍 ' + _esc(e.ref) + '</div>' : '') +
       '</div>' +
-      '<button class="entry-del" onclick="deleteLogEntry(' + e.id + ')">✕</button>' +
+      '<button class="entry-del" onclick="event.stopPropagation();deleteLogEntry(' + e.id + ')">✕</button>' +
+      (isOpen ? '<div class="log-editor-wrap" onclick="event.stopPropagation()">' + renderLogEntryEditor(e) + '</div>' : '') +
     '</div>';
   }).join('');
 }
 
-function deleteLogEntry(id) {
-  AK.log = AK.log.filter(function(e){ return e.id !== id; });
+function toggleLogEntryEdit(id) {
+  LOG_OPEN_ENTRY = (LOG_OPEN_ENTRY === id) ? null : id;
+  renderLogEntries();
+}
+
+function logEditField(id, key, val) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  if(!e.fields) e.fields = {};
+  e.fields[key] = val;
+  e.tsUpdated = new Date().toISOString();
+  AK.save();
+}
+function logEditExtraField(id, key, val) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  if(!e.extra) e.extra = {};
+  e.extra[key] = val;
+  e.tsUpdated = new Date().toISOString();
+  AK.save();
+}
+function logEditToggleDesignFlag(id) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  if(!e.extra) e.extra = {};
+  e.extra.designBeforeCode = !e.extra.designBeforeCode;
+  e.tsUpdated = new Date().toISOString();
   AK.save();
   renderLogEntries();
+}
+function logEditDoneWhen(id, val) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  e.doneWhen = val;
+  e.tsUpdated = new Date().toISOString();
+  AK.save();
+}
+function logEditAddTouchTag(id, raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  var tags = logGetProjectTags(e.projectId);
+  var existing = tags.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { tags.push(val); AK.save(); }
+  var canonical = existing || val;
+  if(!e.touches) e.touches = [];
+  if(e.touches.indexOf(canonical) === -1) e.touches.push(canonical);
+  e.tsUpdated = new Date().toISOString();
+  AK.save();
+  renderLogEntries();
+}
+function logEditToggleTouchTag(id, tag) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  if(!e.touches) e.touches = [];
+  var idx = e.touches.indexOf(tag);
+  if(idx === -1) e.touches.push(tag); else e.touches.splice(idx, 1);
+  e.tsUpdated = new Date().toISOString();
+  AK.save();
+  renderLogEntries();
+}
+function logUpdateStatus(id) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  var sel = document.getElementById('log-status-sel-' + id);
+  var noteEl = document.getElementById('log-status-note-' + id);
+  var newStatus = sel ? sel.value : e.status;
+  var note = noteEl ? noteEl.value.trim() : '';
+  if(newStatus === e.status && !note) { toast('Pick a new status or add a note'); return; }
+  e.status = newStatus;
+  e.tsUpdated = new Date().toISOString();
+  if(!e.statusHistory) e.statusHistory = [];
+  e.statusHistory.push({ status: newStatus, ts: e.tsUpdated, note: note });
+  AK.save();
+  renderLogEntries();
+  toast('Status updated');
+}
+
+function renderLogEntryEditor(e) {
+  if(e.cat === 'note') {
+    return '<div class="log-field-row"><textarea oninput="logEditNote(' + e.id + ',this.value)">' + _esc(e.msg||'') + '</textarea></div>';
+  }
+  var cat = e.cat;
+  var f = e.fields || {};
+  var baseHtml = LOG_BASE_FIELDS.map(function(fld) {
+    if(fld.key === 'where') {
+      return '<div class="log-field-row"><div class="log-field-label">' + _esc(fld.label) + '</div>' + logWhereHtml(e.id) + '</div>';
+    }
+    return '<div class="log-field-row"><div class="log-field-label">' + _esc(fld.label) + '</div>' +
+      (LOG_CHIP_FIELDS.indexOf(fld.key) !== -1 ? logFieldTagsHtml(e.id, fld.key) : '') +
+      '<textarea placeholder="' + _esc(fld.ph) + '" oninput="logEditField(' + e.id + ',\'' + fld.key + '\',this.value)">' + _esc(f[fld.key]||'') + '</textarea></div>';
+  }).join('');
+  var extraHtml = (LOG_EXTRA_FIELDS[cat] || []).map(function(fld) {
+    if(fld.type === 'select') {
+      return '<div class="log-field-row"><div class="log-field-label">' + _esc(fld.label) + '</div>' + logSingleSelectHtml(e.id, fld.key, fld.presetKey) + '</div>';
+    }
+    return '<div class="log-field-row"><div class="log-field-label">' + _esc(fld.label) + '</div>' +
+      '<textarea placeholder="' + _esc(fld.ph) + '" oninput="logEditExtraField(' + e.id + ',\'' + fld.key + '\',this.value)">' + _esc((e.extra&&e.extra[fld.key])||'') + '</textarea></div>';
+  }).join('');
+  var featureExtraHtml = '';
+  if(cat === 'feat') {
+    var otherFeats = AK.log.filter(function(x){ return x.cat === 'feat' && x.projectId === e.projectId && x.id !== e.id; });
+    var curRel = (e.extra && e.extra.relatedId) || '';
+    featureExtraHtml =
+      '<div class="log-field-row"><div class="log-field-label">Related feature (optional)</div>' +
+        '<select onchange="logEditExtraField(' + e.id + ',\'relatedId\',this.value)"><option value="">None</option>' +
+          otherFeats.map(function(x){ return '<option value="' + x.id + '"' + (String(curRel)===String(x.id)?' selected':'') + '>' + _esc((x.fields&&x.fields.why||'').slice(0,40) || ('Entry #'+x.id)) + '</option>'; }).join('') +
+        '</select>' +
+        '<input type="text" style="margin-top:6px" placeholder="How they relate…" value="' + _esc((e.extra&&e.extra.relatedNote)||'') + '" oninput="logEditExtraField(' + e.id + ',\'relatedNote\',this.value)"></div>';
+  }
+  var uiExtraHtml = '';
+  if(cat === 'ui') {
+    var flagged = e.extra && e.extra.designBeforeCode;
+    uiExtraHtml = '<div class="log-field-row"><button type="button" class="log-toggle-btn' + (flagged ? ' on' : '') + '" onclick="logEditToggleDesignFlag(' + e.id + ')">' +
+      (flagged ? '\u2713 Needs its own design pass' : 'Quick fix \u2014 tap to flag as needing design pass') + '</button></div>';
+  }
+  var tags = logGetProjectTags(e.projectId);
+  (e.touches||[]).forEach(function(t){ if(tags.indexOf(t) === -1) tags.push(t); });
+  var chipsHtml = tags.length ? tags.map(function(t) {
+    var on = (e.touches||[]).indexOf(t) !== -1;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="logEditToggleTouchTag(' + e.id + ',\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('') : '<span style="font-size:11px;color:var(--t3);">No tags yet for this project.</span>';
+  var touchesHtml = '<div class="log-field-row"><div class="log-field-label">Touches (optional)</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' + chipsHtml + '</div>' +
+    '<div class="row" style="gap:6px;">' +
+      '<input type="text" id="log-edit-touches-add-' + e.id + '" placeholder="Add a screen or feature…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();logEditAddTouchTag(' + e.id + ',this.value);this.value=\'\';}">' +
+      '<button class="btn" style="flex:0 0 auto;padding:0 12px;" onclick="logEditAddTouchTag(' + e.id + ',document.getElementById(\'log-edit-touches-add-' + e.id + '\').value);document.getElementById(\'log-edit-touches-add-' + e.id + '\').value=\'\';">+ Add</button>' +
+    '</div></div>';
+  var doneWhenHtml = '<div class="log-field-row"><div class="log-field-label">Done when (optional)</div>' +
+    '<input type="text" value="' + _esc(e.doneWhen||'') + '" oninput="logEditDoneWhen(' + e.id + ',this.value)"></div>';
+
+  var statusOpts = LOG_STATUS_SETS[cat].map(function(s){ return '<option value="' + s.id + '"' + (s.id===e.status?' selected':'') + '>' + s.label + '</option>'; }).join('');
+  var histHtml = (e.statusHistory||[]).slice().reverse().map(function(h) {
+    return '<div>' + fmtDate(h.ts) + ' \u2014 ' + _esc(logStatusLabel(cat, h.status)) + (h.note ? ' (' + _esc(h.note) + ')' : '') + '</div>';
+  }).join('');
+  var statusHtml = '<div class="log-field-row"><div class="log-field-label">Status</div>' +
+    '<select id="log-status-sel-' + e.id + '">' + statusOpts + '</select>' +
+    '<input type="text" id="log-status-note-' + e.id + '" placeholder="Note about this change (optional)" style="margin-top:6px">' +
+    '<button class="btn teal" style="margin-top:6px;width:100%" onclick="logUpdateStatus(' + e.id + ')">Update Status</button>' +
+    (histHtml ? '<div class="log-status-hist">' + histHtml + '</div>' : '') +
+  '</div>';
+
+  return statusHtml + baseHtml + extraHtml + featureExtraHtml + uiExtraHtml + touchesHtml + doneWhenHtml +
+    (e.mockupSessionId ? '<div class="log-field-row"><button class="btn" style="width:100%" onclick="logJumpToMockupSession(\'' + e.mockupSessionId + '\')">📷 View screenshot in Mockup</button></div>' : '');
+}
+
+function logEditNote(id, val) {
+  var e = AK.log.find(function(x){ return x.id === id; });
+  if(!e) return;
+  e.msg = val;
+  AK.save();
+}
+
+function deleteLogEntry(id) {
+  AK.log = AK.log.filter(function(e){ return e.id !== id; });
+  if(LOG_OPEN_ENTRY === id) LOG_OPEN_ENTRY = null;
+  AK.save();
+  renderLogEntries();
+}
+
+// ── Continuation / Handoff prompt generator ──
+// Bundles every open (non-terminal-status) Bug/UI/Feature entry, plus any
+// Notes, for the active project into one document — mirroring the shape of a
+// hand-written session handoff doc, ready to paste into a fresh Claude session.
+var LOG_TERMINAL_STATUS = { bug: 'fixed-verified', feat: 'shipped', ui: 'implemented' };
+
+function logFormatEntryLines(e) {
+  var lines = [];
+  var f = e.fields || {};
+  var title = (f.why || '(no description)').split('\n')[0];
+  lines.push('### ' + title);
+  lines.push('- Status: ' + logStatusLabel(e.cat, e.status));
+  if(f.trigger) lines.push('- Trigger: ' + f.trigger);
+  if(f.where) lines.push('- Where: ' + f.where);
+  if(f.data) lines.push('- Data & storage: ' + f.data);
+  if(f.visual) lines.push('- Visual spec: ' + f.visual);
+  if(f.edge) lines.push('- Edge cases: ' + f.edge);
+  (LOG_EXTRA_FIELDS[e.cat] || []).forEach(function(fld) {
+    var v = e.extra && e.extra[fld.key];
+    if(v) lines.push('- ' + fld.label.replace(' (optional)', '') + ': ' + v);
+  });
+  if(e.cat === 'feat' && e.extra && e.extra.relatedId) {
+    var rel = AK.log.find(function(x){ return String(x.id) === String(e.extra.relatedId); });
+    if(rel) lines.push('- Related feature: ' + ((rel.fields && rel.fields.why) || '').split('\n')[0] + (e.extra.relatedNote ? ' (' + e.extra.relatedNote + ')' : ''));
+  }
+  if(e.cat === 'ui' && e.extra && e.extra.designBeforeCode) lines.push('- Flagged: needs its own design pass, not a quick fix');
+  if(e.touches && e.touches.length) lines.push('- Touches: ' + e.touches.join(', '));
+  if(e.doneWhen) lines.push('- Done when: ' + e.doneWhen);
+  if(e.statusHistory && e.statusHistory.length > 1) {
+    lines.push('- History: ' + e.statusHistory.map(function(h){ return logStatusLabel(e.cat, h.status); }).join(' \u2192 '));
+  }
+  if(e.mockupSessionId) lines.push('- Has an attached annotated screenshot in AuditKit\u2019s Mockup tab.');
+  lines.push('');
+  return lines;
+}
+
+function logGenerateHandoff() {
+  if(!AK.activeProject) { toast('Set an active project first'); return; }
+  var proj = AK.projects.find(function(p){ return p.id === AK.activeProject; });
+  var projEntries = AK.log.filter(function(e){ return e.projectId === AK.activeProject; });
+
+  var open = { bug: [], ui: [], feat: [] };
+  projEntries.forEach(function(e) {
+    if(e.cat === 'note' || !open[e.cat]) return;
+    if(e.status === LOG_TERMINAL_STATUS[e.cat]) return;
+    open[e.cat].push(e);
+  });
+  var notes = projEntries.filter(function(e){ return e.cat === 'note'; });
+  var totalOpen = open.bug.length + open.ui.length + open.feat.length;
+  if(!totalOpen && !notes.length) { toast('No open items or notes for this project'); return; }
+
+  var lines = [];
+  lines.push((proj ? proj.name : 'Project') + ' \u2014 Session Handoff');
+  lines.push('Generated ' + new Date().toLocaleDateString());
+  lines.push('');
+  lines.push('This document summarizes open work items so a fresh Claude session can pick them up with full context.');
+  lines.push('');
+
+  var sections = [ ['bug','Open Bugs'], ['ui','Open UI Work'], ['feat','Open Features'] ];
+  sections.forEach(function(pair) {
+    var items = open[pair[0]];
+    if(!items.length) return;
+    lines.push('## ' + pair[1] + ' (' + items.length + ')');
+    items.forEach(function(e){ lines.push.apply(lines, logFormatEntryLines(e)); });
+  });
+
+  if(notes.length) {
+    lines.push('## Context Notes (' + notes.length + ')');
+    notes.forEach(function(e){ lines.push('- ' + (e.msg || '').split('\n')[0]); });
+    lines.push('');
+  }
+
+  if(totalOpen) {
+    lines.push('## Suggested Continuation Prompt');
+    lines.push('');
+    var promptParts = [];
+    var i = 0;
+    ['bug','ui','feat'].forEach(function(cat) {
+      open[cat].forEach(function(e) {
+        i++;
+        promptParts.push('(' + i + ') ' + LOG_CAT_LABELS[cat] + ': ' + ((e.fields && e.fields.why) || '').split('\n')[0]);
+      });
+    });
+    lines.push('"Continuing ' + (proj ? proj.name : 'this project') + ' \u2014 I have ' + totalOpen + ' open item' + (totalOpen === 1 ? '' : 's') + ' to pick up: ' +
+      promptParts.join('; ') + '. See the handoff doc for full context on each."');
+  }
+
+  var text = lines.join('\n');
+  document.getElementById('log-handoff-text').value = text;
+  document.getElementById('log-handoff-wrap').style.display = 'block';
+  setTimeout(function() {
+    document.getElementById('log-handoff-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 60);
+}
+
+function logCopyHandoff() {
+  var el = document.getElementById('log-handoff-text');
+  var text = el ? el.value : '';
+  if(!text) { toast('Generate the handoff first'); return; }
+  function onCopied() { toast('\u2713 Handoff copied \u2014 paste into a fresh Claude session'); }
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(onCopied).catch(function(){ fallbackCopy(text, onCopied); });
+  } else {
+    fallbackCopy(text, onCopied);
+  }
 }
 
 function doExportLog() {
@@ -6132,7 +6806,7 @@ function buildAuditPrompt() {
   }
   if(openBugs.length) {
     p += '## Open Bug/UI Log\n';
-    p += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + e.msg; }).join('\n') + '\n\n';
+    p += openBugs.slice(0,15).map(function(e){ return '- [' + e.cat + '] ' + logEntryText(e); }).join('\n') + '\n\n';
   }
 
   var cd = diff.codeDiff;
@@ -6284,7 +6958,7 @@ async function logAiSummary() {
   if(!bugs.length) { toast('No bugs or UI issues to summarize'); return; }
 
   var prompt = 'Summarize these PWA bug/UI log entries and suggest fixes:\n\n' +
-    bugs.slice(0,30).map(function(e,i){ return (i+1) + '. [' + e.cat + '] ' + e.msg + (e.ref ? ' (element: ' + e.ref + ')' : ''); }).join('\n') +
+    bugs.slice(0,30).map(function(e,i){ return (i+1) + '. [' + e.cat + '] ' + logEntryText(e) + (e.ref ? ' (element: ' + e.ref + ')' : ''); }).join('\n') +
     '\n\nGroup by theme and prioritize.';
 
   toast('Generating AI summary…');
@@ -6652,8 +7326,23 @@ var MK = {
   imageDataUrl: null,   // kept in memory for canvas export; persisted in IDB
   destPickingFor: null, // annotation id currently picking a destination
   saveTimer: null,      // debounce timer
-  exportSessionId: null // session being exported via modal
+  exportSessionId: null, // session being exported via modal
+  touches: [],           // session-level: array of screen/feature tags this change affects
+  doneWhen: '',          // session-level: one-line acceptance criteria
+  caseId: null,          // groups multiple screenshot sessions into one multi-shot case
+  pendingCaseAppend: false, // set true just before loading an image that should join the current case
+  pendingTouches: [], pendingDoneWhen: '' // carried defaults for the next screenshot in a case
 };
+
+// Universal schema fields — appended to every pin/box annotation regardless of
+// category, so every entry can carry the full change-request schema
+// (Why/Current-Expected come from the category-specific fields above).
+var MK_EXTRA_FIELDS = [
+  { key: 'trigger', label: 'Trigger (optional)',        ph: 'What starts this \u2014 tap, load, swipe, threshold, background event\u2026', skipForCat: 'trigger' },
+  { key: 'data',    label: 'Data & storage (optional)', ph: 'New fields needed, where stored, migration needed for existing data?' },
+  { key: 'visual',  label: 'Visual spec (optional)',    ph: 'Layout/spacing/colour \u2014 reference existing CSS tokens where possible\u2026' },
+  { key: 'edge',    label: 'Edge cases (optional)',     ph: 'Empty state, error state, offline state, first run\u2026' }
+];
 
 // Category definitions
 var MK_CATS = [
@@ -6682,6 +7371,11 @@ var MK_CAT_COLOURS = {
   none: '#8b90a0', position: '#7c9ef5', ui: '#00d9d9',
   bug: '#e85d4c', trigger: '#9d4edd', feature: '#ffd700'
 };
+
+// Mockup category -> Log entry type. 'none'/'position' default to UI (most
+// visual/uncategorised edits are UI concerns); 'trigger' defaults to Bug since
+// its current/expected fields are the same shape as a bug report.
+var MK_TO_LOG_CAT = { bug: 'bug', trigger: 'bug', ui: 'ui', position: 'ui', feature: 'feat', none: 'ui' };
 
 function mkCatById(id) {
   return MK_CATS.find(function(c){ return c.id === id; }) || MK_CATS[0];
@@ -6736,13 +7430,18 @@ function mkSaveCurrentSession() {
   var sessions = mkLoadSessions();
   var idx = sessions.findIndex(function(s){ return s.id === MK.sessionId; });
   var nameEl = document.getElementById('mk-session-name');
+  var createdTs = (idx >= 0 && sessions[idx].createdTs) ? sessions[idx].createdTs : new Date().toISOString();
   var session = {
     id: MK.sessionId,
     name: (nameEl ? nameEl.value.trim() : '') || mkDefaultSessionName(),
     projectId: AK.activeProject,
     projectName: (AK.projects.find(function(p){ return p.id == AK.activeProject; }) || {}).name || '',
     ts: new Date().toISOString(),
+    createdTs: createdTs,
     annotations: MK.annotations,
+    touches: MK.touches || [],
+    doneWhen: MK.doneWhen || '',
+    caseId: MK.caseId || null,
     generatedText: (document.getElementById('mk-output-text') || {}).value || ''
   };
   if(idx >= 0) sessions[idx] = session; else sessions.unshift(session);
@@ -6835,12 +7534,20 @@ function mkReadBlob(blob) {
 }
 function mkLoadImage(dataUrl) {
   var img = new Image();
+  var appending = MK.pendingCaseAppend;
+  var carryTouches = appending ? (MK.pendingTouches || []).slice() : [];
+  var carryDoneWhen = appending ? (MK.pendingDoneWhen || '') : '';
+  var caseId = appending ? MK.caseId : ('case_' + Date.now());
   img.onload = function() {
     MK.imageW = img.naturalWidth;
     MK.imageH = img.naturalHeight;
     MK.imageDataUrl = dataUrl;
     MK.annotations = [];
     MK.drawing = null;
+    MK.touches = carryTouches;
+    MK.doneWhen = carryDoneWhen;
+    MK.caseId = caseId;
+    MK.pendingCaseAppend = false;
     // Create a new session
     MK.sessionId = 'mk_' + Date.now();
     var imgEl = document.getElementById('mk-image');
@@ -6851,13 +7558,52 @@ function mkLoadImage(dataUrl) {
     document.getElementById('mk-output-wrap').style.display = 'none';
     var nameEl = document.getElementById('mk-session-name');
     if(nameEl) nameEl.value = mkDefaultSessionName();
+    mkRenderTouchesChips();
+    var doneWhenEl = document.getElementById('mk-done-when');
+    if(doneWhenEl) doneWhenEl.value = MK.doneWhen;
     mkSetMode('move');
     mkRenderOverlay();
     mkRenderAnnotationList();
     mkSaveCurrentSession(); // save immediately so session appears in log
+    mkRenderCaseStrip();
   };
-  img.onerror = function() { toast('Could not load that image'); };
+  img.onerror = function() { toast('Could not load that image'); MK.pendingCaseAppend = false; };
   img.src = dataUrl;
+}
+
+// ── Multi-screenshot cases: sessions sharing a caseId are one "change" ──
+function mkGetCaseSessions(caseId) {
+  if(!caseId) return [];
+  return mkLoadSessions().filter(function(s){ return s.caseId === caseId; })
+    .sort(function(a,b){ return new Date(a.createdTs||a.ts) - new Date(b.createdTs||b.ts); });
+}
+function mkAddScreenshotToCase(mode) {
+  if(!MK.sessionId) { toast('Load a screenshot first'); return; }
+  if(!MK.caseId) { MK.caseId = 'case_' + Date.now(); mkSaveCurrentSession(); }
+  MK.pendingCaseAppend = true;
+  MK.pendingTouches = MK.touches.slice();
+  MK.pendingDoneWhen = MK.doneWhen;
+  if(mode === 'paste') mkPasteFromClipboard();
+  else document.getElementById('mk-file-input').click();
+}
+function mkRenderCaseStrip() {
+  var wrap = document.getElementById('mk-case-strip');
+  if(!wrap) return;
+  var sessions = mkGetCaseSessions(MK.caseId);
+  if(!sessions.length) return; // not yet part of a saved case
+  var curName = (document.getElementById('mk-session-name')||{}).value || '';
+  var chips = sessions.map(function(s, i) {
+    var on = s.id === MK.sessionId;
+    var label = (i+1) + '. ' + _esc(((s.id===MK.sessionId ? curName : s.name) || 'Untitled').slice(0,18));
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '"' + (on ? '' : ' onclick="mkRevisitSession(\'' + s.id + '\')"') + '>' + label + '</span>';
+  }).join('');
+  wrap.innerHTML =
+    '<div class="mk-field-label">Screenshots in this case (' + sessions.length + ')</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' + chips + '</div>' +
+    '<div class="row" style="gap:6px;">' +
+      '<button class="btn" style="flex:1;" onclick="mkAddScreenshotToCase(\'file\')">⬆ Add Screenshot</button>' +
+      '<button class="btn" style="flex:1;" onclick="mkAddScreenshotToCase(\'paste\')">📋 Add (paste)</button>' +
+    '</div>';
 }
 function mkSyncOverlaySize() {
   var imgEl = document.getElementById('mk-image');
@@ -6871,6 +7617,7 @@ function mkNewImage() {
   document.getElementById('mk-file-input').value = '';
   MK.imageDataUrl = null; MK.imageW = 0; MK.imageH = 0;
   MK.annotations = []; MK.drawing = null; MK.sessionId = null;
+  MK.caseId = null; MK.pendingCaseAppend = false;
   mkResetZoom();
 }
 
@@ -7769,6 +8516,47 @@ function mkSetReg(id, val) {
   var a = MK.annotations.find(function(x){ return x.id === id; });
   if(a) { a.regId = val; mkDebounceSave(); }
 }
+function mkSetDoneWhen(val) { MK.doneWhen = val; mkDebounceSave(); }
+
+// ── Touches tags: per-project custom list, grows as you add ──
+function mkGetProjectTags() {
+  var pid = AK.activeProject;
+  if(!pid) return [];
+  if(!AK.screenTags[pid]) AK.screenTags[pid] = [];
+  return AK.screenTags[pid];
+}
+function mkAddTouchTag(raw) {
+  var val = (raw || '').trim();
+  if(!val) return;
+  var tags = mkGetProjectTags();
+  var existing = tags.find(function(t){ return t.toLowerCase() === val.toLowerCase(); });
+  if(!existing) { tags.push(val); AK.save(); }
+  var canonical = existing || val;
+  if(!MK.touches) MK.touches = [];
+  if(MK.touches.indexOf(canonical) === -1) MK.touches.push(canonical);
+  mkRenderTouchesChips();
+  mkDebounceSave();
+}
+function mkToggleTouchTag(tag) {
+  if(!MK.touches) MK.touches = [];
+  var idx = MK.touches.indexOf(tag);
+  if(idx === -1) MK.touches.push(tag); else MK.touches.splice(idx, 1);
+  mkRenderTouchesChips();
+  mkDebounceSave();
+}
+function mkRenderTouchesChips() {
+  var wrap = document.getElementById('mk-touches-chips');
+  if(!wrap) return;
+  var tags = mkGetProjectTags();
+  if(!MK.touches) MK.touches = [];
+  // Keep any selected tags that aren't in the project list yet (e.g. restored from an older session)
+  MK.touches.forEach(function(t) { if(tags.indexOf(t) === -1) tags.push(t); });
+  if(!tags.length) { wrap.innerHTML = '<span style="font-size:11px;color:var(--t3);">No screens/features added yet for this project — type one below.</span>'; return; }
+  wrap.innerHTML = tags.map(function(t) {
+    var on = MK.touches.indexOf(t) !== -1;
+    return '<span class="mk-tag-chip' + (on ? ' on' : '') + '" onclick="mkToggleTouchTag(\'' + _esc(t).replace(/'/g,"\\'") + '\')">' + _esc(t) + '</span>';
+  }).join('');
+}
 
 // ── SVG overlay ──
 function mkRenderOverlay() {
@@ -7947,6 +8735,13 @@ function mkRenderAnnotationList() {
       return '<div><div class="mk-field-label">' + _esc(f.label) + '</div>' +
         '<textarea placeholder="' + _esc(f.ph) + '" oninput="mkSetField(' + a.id + ',\'' + f.key + '\',this.value)">' + val + '</textarea></div>';
     }).join('');
+    var extraHtml = MK_EXTRA_FIELDS.filter(function(f) {
+      return f.skipForCat !== cat.id;
+    }).map(function(f) {
+      var val = (a.fields && a.fields[f.key]) ? _esc(a.fields[f.key]) : '';
+      return '<div><div class="mk-field-label" style="opacity:0.75">' + _esc(f.label) + '</div>' +
+        '<textarea placeholder="' + _esc(f.ph) + '" oninput="mkSetField(' + a.id + ',\'' + f.key + '\',this.value)">' + val + '</textarea></div>';
+    }).join('');
     // Destination button for Position category
     var destHtml = '';
     if(cat.hasDest) {
@@ -7970,7 +8765,7 @@ function mkRenderAnnotationList() {
       '<div class="mk-anno-fields">' +
         '<div><div class="mk-field-label">Category</div>' +
           '<select onchange="mkSetCat(' + a.id + ',this.value)">' + catOptions + '</select></div>' +
-        fieldHtml + destHtml + regHtml +
+        fieldHtml + extraHtml + destHtml + regHtml +
       '</div></div>';
   }).join('');
   MK.annotations.forEach(function(a) {
@@ -7989,35 +8784,96 @@ function mkRegistryOptionsHtml() {
 }
 
 // ── Plain-English description ──
-function mkGenerateDescription() {
-  if(!MK.annotations.length) { toast('Add at least one annotation first'); return; }
-  var proj = AK.projects.find(function(p){ return p.id == AK.activeProject; });
-  var lines = ['Screenshot redesign notes' + (proj ? ' \u2014 ' + proj.name : '') + ':', ''];
-  MK.annotations.forEach(function(a, i) {
-    var n = i + 1, cat = mkCatById(a.cat), f = a.fields || {};
-    var loc = a.type === 'pin'
-      ? 'at roughly ' + Math.round(a.x) + '%, ' + Math.round(a.y) + '% on the screenshot'
-      : 'in the region ' + Math.round(a.x) + '\u2013' + Math.round(a.x2) + '% across, ' + Math.round(a.y) + '\u2013' + Math.round(a.y2) + '% down';
-    var regNote = '';
-    if(a.regId) {
-      var reg = AK.registry.find(function(r){ return r.id == a.regId; });
-      if(reg) regNote = ' Element: ' + (reg.elId || reg.name) + (reg.screen ? ' on "' + reg.screen + '"' : '') + '.';
-    }
-    var destNote = '';
-    if(cat.id === 'position' && a.destX !== undefined) {
-      destNote = '\n   Move to: roughly ' + Math.round(a.destX) + '%, ' + Math.round(a.destY) + '% on the screenshot (see arrow).';
-    }
-    var detail = '';
-    if(cat.id === 'bug') {
-      detail = '\n   What happens: ' + (f.actual || '(not described)') + '\n   What should happen: ' + (f.expected || '(not described)');
-    } else if(cat.id === 'trigger') {
-      detail = '\n   Current: ' + (f.current || '(not described)') + '\n   Expected: ' + (f.expected || '(not described)');
-    } else {
-      detail = ' ' + (f.note || '(no detail written)');
-    }
-    lines.push(n + '. [' + cat.label.toUpperCase() + '] ' + loc + '.' + regNote + detail + destNote);
+function mkFormatAnnotationLines(a, n) {
+  var lines = [];
+  var cat = mkCatById(a.cat), f = a.fields || {};
+
+  if(a.type === 'cut') {
+    lines.push(n + '. [COPY & PLACE] Source region: ' +
+      Math.round(a.src.x) + '\u2013' + Math.round(a.src.x2) + '% across, ' +
+      Math.round(a.src.y) + '\u2013' + Math.round(a.src.y2) + '% down.' +
+      ' Move to: ' + Math.round(a.dest.x) + '%, ' + Math.round(a.dest.y) + '%.' +
+      (f.note ? ' Note: ' + f.note : ''), '');
+    return lines;
+  }
+  if(a.type === 'shape') {
+    var shapeLabels = { arrow:'Arrow', line:'Line', circle:'Circle', rect:'Rectangle', free:'Freehand' };
+    lines.push(n + '. [' + (shapeLabels[a.shape]||a.shape).toUpperCase() + ' MARK] ' +
+      (f.note || '(no detail written)'), '');
+    return lines;
+  }
+
+  var loc = a.type === 'pin'
+    ? 'at roughly ' + Math.round(a.x) + '%, ' + Math.round(a.y) + '% on the screenshot'
+    : 'in the region ' + Math.round(a.x) + '\u2013' + Math.round(a.x2) + '% across, ' + Math.round(a.y) + '\u2013' + Math.round(a.y2) + '% down';
+  var regNote = '';
+  if(a.regId) {
+    var reg = AK.registry.find(function(r){ return r.id == a.regId; });
+    if(reg) regNote = ' Element: ' + (reg.elId || reg.name) + (reg.screen ? ' on "' + reg.screen + '"' : '') + '.';
+  }
+
+  lines.push(n + '. [' + cat.label.toUpperCase() + '] Where: ' + loc + '.' + regNote);
+
+  if(cat.id === 'bug') {
+    lines.push('   Why / current: ' + (f.actual || '(?)'));
+    lines.push('   Expected: ' + (f.expected || '(?)'));
+  } else if(cat.id === 'trigger') {
+    lines.push('   Current trigger/behaviour: ' + (f.current || '(?)'));
+    lines.push('   Expected trigger/behaviour: ' + (f.expected || '(?)'));
+  } else {
+    lines.push('   Why: ' + (f.note || '(?)'));
+  }
+
+  if(cat.id === 'position' && a.destX !== undefined) {
+    lines.push('   Move to: roughly ' + Math.round(a.destX) + '%, ' + Math.round(a.destY) + '% on the screenshot (see arrow).');
+  }
+
+  MK_EXTRA_FIELDS.forEach(function(ef) {
+    if(ef.skipForCat === cat.id) return;
+    var v = f[ef.key];
+    if(v) lines.push('   ' + ef.label.replace(' (optional)', '') + ': ' + v);
   });
-  lines.push('', 'Please apply the above changes, preserving all other existing behaviour.');
+
+  lines.push('');
+  return lines;
+}
+
+// Gathers annotations across every screenshot in the current case (or just
+// the active session if it isn't part of a case), pairing each with the id
+// of the session it lives on.
+function mkGetCaseAnnotationContexts() {
+  mkSaveCurrentSession();
+  var sessions = MK.caseId ? mkGetCaseSessions(MK.caseId) : [];
+  if(!sessions.length) sessions = [{ id: MK.sessionId, name: 'Screenshot', annotations: MK.annotations }];
+  return sessions.map(function(s) {
+    return { id: s.id, name: s.name || 'Untitled', annotations: (s.id === MK.sessionId ? MK.annotations : (s.annotations || [])) };
+  });
+}
+
+function mkGenerateDescription() {
+  var contexts = mkGetCaseAnnotationContexts();
+  var totalAnnos = contexts.reduce(function(n, c){ return n + c.annotations.length; }, 0);
+  if(!totalAnnos) { toast('Add at least one annotation first'); return; }
+
+  var proj = AK.projects.find(function(p){ return p.id == AK.activeProject; });
+  var lines = ['CHANGE REQUEST' + (proj ? ' \u2014 ' + proj.name : ''), ''];
+  var multiShot = contexts.length > 1;
+  var counter = 0;
+
+  contexts.forEach(function(ctx, ci) {
+    if(!ctx.annotations.length) return;
+    if(multiShot) lines.push('\u2014\u2014\u2014 Screenshot ' + (ci+1) + ': ' + ctx.name + ' \u2014\u2014\u2014', '');
+    ctx.annotations.forEach(function(a) {
+      counter++;
+      lines.push.apply(lines, mkFormatAnnotationLines(a, counter));
+    });
+  });
+
+  lines.push('Touches: ' + (MK.touches && MK.touches.length ? MK.touches.join(', ') : '(none noted)'));
+  lines.push('Done when: ' + (MK.doneWhen || '(not specified)'));
+  lines.push('');
+  lines.push('Any field above marked (?) is unresolved \u2014 please confirm or ask about those specifically before proposing an implementation. Preserve all other existing behaviour.');
+
   var text = lines.join('\n');
   document.getElementById('mk-output-text').value = text;
   document.getElementById('mk-output-wrap').style.display = 'block';
@@ -8025,6 +8881,130 @@ function mkGenerateDescription() {
     document.getElementById('mk-output-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 60);
   mkDebounceSave();
+}
+
+function mkCopyOutput() {
+  var el = document.getElementById('mk-output-text');
+  var text = el ? el.value : '';
+  if(!text) { toast('Generate the prompt first'); return; }
+  function onCopied() { toast('\u2713 Prompt copied \u2014 paste into Claude'); }
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(onCopied).catch(function(){ fallbackCopy(text, onCopied); });
+  } else {
+    fallbackCopy(text, onCopied);
+  }
+}
+
+// ── Send annotations to the Log tab as trackable entries ──
+// Each pin/box annotation across every screenshot in the current case becomes
+// (or updates) its own Log entry, mapped by category. Idempotent: an
+// annotation remembers the entry it created (a.loggedEntryId) so re-running
+// this after edits updates instead of duplicating. Session-level
+// Touches/Done-when carry onto every entry created or updated this way.
+function mkSendAnnotationsToLog() {
+  if(!AK.activeProject) { toast('Set an active project first'); return; }
+  var contexts = mkGetCaseAnnotationContexts();
+  var totalAnnos = contexts.reduce(function(n, c){ return n + c.annotations.length; }, 0);
+  if(!totalAnnos) { toast('Add at least one annotation first'); return; }
+
+  var created = 0, updated = 0, skipped = 0;
+  var touches = MK.touches ? MK.touches.slice() : [];
+  var doneWhen = MK.doneWhen || '';
+
+  contexts.forEach(function(ctx) {
+    ctx.annotations.forEach(function(a) {
+      // Cut & shape annotations carry only a note — these become simple Note entries
+      if(a.type === 'cut' || a.type === 'shape') {
+        var note = (a.fields && a.fields.note) || '';
+        if(!note.trim()) { skipped++; return; }
+        if(a.loggedEntryId) {
+          var existingNote = AK.log.find(function(e){ return e.id === a.loggedEntryId; });
+          if(existingNote) {
+            existingNote.msg = note;
+            existingNote.tsUpdated = new Date().toISOString();
+            updated++; AK.save(); return;
+          }
+        }
+        var noteEntry = { id: Date.now() + Math.random(), ts: new Date().toISOString(), cat: 'note', msg: note, screen: AK.screen, ref: null, projectId: AK.activeProject };
+        AK.log.unshift(noteEntry);
+        a.loggedEntryId = noteEntry.id;
+        created++;
+        return;
+      }
+
+      var cat = mkCatById(a.cat);
+      var f = a.fields || {};
+      var logCat = MK_TO_LOG_CAT[cat.id] || 'ui';
+
+      var whyText;
+      if(cat.id === 'bug') whyText = 'What happens: ' + (f.actual || '(?)') + '\nWhat should happen: ' + (f.expected || '(?)');
+      else if(cat.id === 'trigger') whyText = 'Current: ' + (f.current || '(?)') + '\nExpected: ' + (f.expected || '(?)');
+      else whyText = f.note || '';
+      var hasContent = (f.note || f.actual || f.current || f.expected || '').trim().length > 0;
+      if(!hasContent) { skipped++; return; }
+
+      var whereText = a.type === 'pin'
+        ? 'roughly ' + Math.round(a.x) + '%, ' + Math.round(a.y) + '% on the screenshot'
+        : 'region ' + Math.round(a.x) + '\u2013' + Math.round(a.x2) + '% \u00d7 ' + Math.round(a.y) + '\u2013' + Math.round(a.y2) + '%';
+
+      var refText = null;
+      if(a.regId) {
+        var reg = AK.registry.find(function(r){ return r.id == a.regId; });
+        if(reg) refText = reg.elId || reg.name;
+      }
+
+      var fieldsObj = { why: whyText, trigger: f.trigger || '', where: whereText, data: f.data || '', visual: f.visual || '', edge: f.edge || '' };
+
+      if(a.loggedEntryId) {
+        var existing = AK.log.find(function(e){ return e.id === a.loggedEntryId; });
+        if(existing) {
+          existing.fields = fieldsObj;
+          existing.touches = touches.slice();
+          existing.doneWhen = doneWhen;
+          existing.tsUpdated = new Date().toISOString();
+          AK.save();
+          updated++;
+          return;
+        }
+      }
+
+      var initialStatus = LOG_STATUS_SETS[logCat][0].id;
+      var now = new Date().toISOString();
+      var entry = {
+        id: Date.now() + Math.random(), ts: now, tsUpdated: now, cat: logCat, projectId: AK.activeProject,
+        screen: AK.screen, ref: refText,
+        fields: fieldsObj, touches: touches.slice(), doneWhen: doneWhen,
+        status: initialStatus, statusHistory: [{ status: initialStatus, ts: now, note: 'Created from Mockup annotation' }],
+        extra: {}, mockupSessionId: ctx.id, mockupAnnotationId: a.id
+      };
+      AK.log.unshift(entry);
+      a.loggedEntryId = entry.id;
+      created++;
+    });
+  });
+
+  // Persist loggedEntryId changes: the active session via the normal debounce
+  // path, every other case session written back explicitly.
+  mkDebounceSave();
+  var allSessions = mkLoadSessions();
+  contexts.forEach(function(ctx) {
+    if(ctx.id === MK.sessionId) return;
+    var idx = allSessions.findIndex(function(s){ return s.id === ctx.id; });
+    if(idx >= 0) allSessions[idx].annotations = ctx.annotations;
+  });
+  mkSaveSessions(allSessions);
+
+  AK.save();
+  mkRenderAnnotationList();
+  var msg = 'Log: ' + created + ' created';
+  if(updated) msg += ', ' + updated + ' updated';
+  if(skipped) msg += ', ' + skipped + ' skipped (empty)';
+  toast(msg);
+}
+
+function logJumpToMockupSession(sessionId) {
+  showScreen('mockup');
+  mkRevisitSession(sessionId);
 }
 
 // ── Sessions list rendering ──
@@ -8093,6 +9073,9 @@ function mkRevisitSession(id) {
       MK.imageDataUrl = dataUrl;
       MK.annotations = s.annotations || [];
       MK.sessionId = s.id;
+      MK.touches = s.touches ? (Array.isArray(s.touches) ? s.touches : [s.touches]) : [];
+      MK.doneWhen = s.doneWhen || '';
+      MK.caseId = s.caseId || null;
       var imgEl = document.getElementById('mk-image');
       imgEl.src = dataUrl;
       imgEl.onload = function() { mkSyncOverlaySize(); mkRenderOverlay(); mkRenderAnnotationList(); };
@@ -8100,6 +9083,10 @@ function mkRevisitSession(id) {
       document.getElementById('mk-workspace').style.display = 'block';
       var nameEl = document.getElementById('mk-session-name');
       if(nameEl) nameEl.value = s.name || '';
+      mkRenderTouchesChips();
+      mkRenderCaseStrip();
+      var doneWhenEl = document.getElementById('mk-done-when');
+      if(doneWhenEl) doneWhenEl.value = MK.doneWhen;
       var outWrap = document.getElementById('mk-output-wrap');
       var outText = document.getElementById('mk-output-text');
       if(s.generatedText && outText) {
